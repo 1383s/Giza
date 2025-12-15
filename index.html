@@ -10,8 +10,9 @@
         import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js'; 
 
+        // 🚨 برجاء تحديث بيانات مشروعك هنا 
         const firebaseConfig = {
-            apiKey: "AIzaSyBK6FZF3LW83qaUHBKYTfiVd2Ozrd1Rf2g",
+            apiKey: "AIzaSyBK6FZF3LW83qaUHBKYTfiVd2Ozrd1Rf2g", // ✅ تحديث
             authDomain: "thanawy-1383.firebaseapp.com",
             databaseURL: "https://thanawy-1383-default-rtdb.firebaseio.com",
             projectId: "thanawy-1383",
@@ -24,7 +25,7 @@
         // 🔑 تحديد دور اللوحة دي
         const CURRENT_ADMIN_ROLE = 'giza'; 
 
-        // 🚨 برجاء تغيير هذا الـ UID بالـ UID الفعلي لـ GIZA من الـ Rules
+        // 🚨🚨🚨 هذا الـ UID يجب أن يتم تحديثه بالـ UID الخاص بحساب المالك (GIZA) في Firebase Auth
         const GIZA_ALLOWED_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1"; 
         
         const app = initializeApp(firebaseConfig);
@@ -35,7 +36,6 @@
         let allCodesData = {};
         let activeTile = null; 
         let currentUserUid = null; 
-        // 💡 FIX: متغير عالمي لتخزين بيانات التصنيف الحالية
         let currentCategorizedData = { active: [], manuallyBlocked: [], expired: [] }; 
         
         
@@ -60,6 +60,7 @@
                 return true;
             } else {
                 window.showToast("❌ غير مُصرح لك بالدخول لهذه اللوحة. الـ UID غير مطابق لـ UID المالك.", "error");
+                // تسجيل الخروج لضمان الأمان
                 signOut(auth); 
                 return false;
             }
@@ -71,12 +72,13 @@
                 window.showToast("❌ يجب تسجيل الدخول أولًا لإجراء أي عملية.", "error");
                 return;
             }
+            // بما أن اللوحة لن تظهر إلا إذا كان التحقق ناجحاً، فهذه خطوة أمان إضافية
             if (await checkAdminStatus(currentUserUid)) { 
                 action(...args);
             }
         }
 
-        // 💡 Logic 3: تسجيل الدخول (احتفظ بها كما هي)
+        // 💡 Logic 3: تسجيل الدخول (تم التعديل لفتح اللوحة مباشرة بعد التحقق)
         window.handleLogin = async (e) => {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value;
@@ -84,19 +86,36 @@
             
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const uid = userCredential.user.uid;
+                
                 window.showToast("✅ تم تسجيل الدخول بنجاح. جاري التحقق من الصلاحيات...", "success");
+                
+                // التحقق الفوري من الصلاحيات قبل فتح اللوحة
+                if (await checkAdminStatus(uid)) { 
+                    currentUserUid = uid;
+                    
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('mainContent').style.display = 'block';
+                    document.getElementById('logoutBtn').style.display = 'block';
+
+                    loadAllCodes(); 
+                    
+                } 
+                // إذا لم يكن مطابقاً، فالدالة checkAdminStatus قامت بتسجيل الخروج بالفعل
+                // onAuthStateChanged ستتكفل بإعادة عرض شاشة الدخول.
+
             } catch (error) {
                 window.showToast(`❌ فشل تسجيل الدخول: ${error.message}`, "error");
             }
         };
 
-        // 💡 Logic 4: تسجيل الخروج (احتفظ بها كما هي)
+        // 💡 Logic 4: تسجيل الخروج
         window.logout = async () => {
             await signOut(auth);
             window.showToast("👋 تم تسجيل الخروج بنجاح.", "warn");
         };
 
-        // 💡 Logic 5: توليد كود عشوائي فريد (احتفظ بها كما هي)
+        // 💡 Logic 5: توليد كود عشوائي فريد
         function generateUniqueCode() {
             let code;
             do {
@@ -105,7 +124,7 @@
             return code;
         }
 
-        // 💡 Logic 6: إخراج الكود من الجهاز الحالي (احتفظ بها كما هي)
+        // 💡 Logic 6: إخراج الكود من الجهاز الحالي
         window.ejectDevice = (uid, name) => checkAuthAndProceed(() => {
             if (!confirm(`متأكد من إخراج كود الطالب ${name} (${uid}) من جهازه الحالي؟`)) return;
             update(ref(db, 'approvedStudents/' + uid), {
@@ -115,7 +134,7 @@
             }).catch(e => window.showToast("❌ فشل الإخراج: " + e.message, "error"));
         });
 
-        // 💡 Logic 7: حذف الكود (احتفظ بها كما هي)
+        // 💡 Logic 7: حذف الكود
         window.deleteCode = (uid, name) => checkAuthAndProceed(() => {
             if (!confirm(`متأكد من حذف كود الطالب ${name} (${uid}) نهائياً؟`)) return;
             remove(ref(db, 'approvedStudents/' + uid))
@@ -123,7 +142,7 @@
             .catch(e => window.showToast("❌ فشل الحذف: " + e.message, "error"));
         });
         
-        // 💡 Logic 8: تفعيل/تعطيل الكود (احتفظ بها كما هي)
+        // 💡 Logic 8: تفعيل/تعطيل الكود
         window.toggleBlock = (uid, name, isBlocked) => checkAuthAndProceed(() => {
             update(ref(db, 'approvedStudents/' + uid), {
                 isBlocked: !isBlocked
@@ -132,35 +151,132 @@
             }).catch(e => window.showToast("❌ فشل تغيير الحالة: " + e.message, "error"));
         });
 
-        // 💡 Logic 9: إضافة كود جديد (GIZA) (احتفظ بها كما هي)
+        // 💡 Logic 9: إضافة كود جديد (GIZA)
         window.addNewCode = (e) => checkAuthAndProceed(() => {
-           // ... (الكود لم يتغير)
-        }, e);
+            e.preventDefault();
+            const form = e.target;
+            const name = form.studentName.value;
+            const price = parseFloat(form.price.value) || 0;
+            const durationType = form.durationType.value;
+            const customDays = parseInt(form.customDays.value) || 0;
+            const newCode = document.getElementById('newCodeDisplay').textContent;
+            
+            let expiryTime = Date.now();
+            
+            if (durationType === 'trial') {
+                expiryTime += 1 * 60 * 60 * 1000;
+            } else if (durationType === '30days') {
+                expiryTime += 30 * 24 * 60 * 60 * 1000;
+            } else if (durationType === 'custom' && customDays > 0) {
+                expiryTime += customDays * 24 * 60 * 60 * 1000;
+            } else {
+                window.showToast("❌ يجب تحديد مدة التفعيل.", "error");
+                return;
+            }
 
-        // 💡 Logic 10: تحميل البيانات من Firebase (احتفظ بها كما هي)
+            set(ref(db, 'approvedStudents/' + newCode), {
+                uid: newCode,
+                name: name,
+                pricePaid: price,
+                addedByAdmin: CURRENT_ADMIN_ROLE,
+                approvedAt: Date.now(),
+                expiry: expiryTime,
+                deviceId: "",
+                isBlocked: false,
+                isTrial: durationType === 'trial'
+            }).then(() => {
+                window.showToast(`✅ تم إضافة الكود ${newCode} بنجاح.`, "success");
+                toggleAddCodeForm(false);
+                form.reset();
+            }).catch(error => {
+                window.showToast("❌ فشل الإضافة: " + error.message, "error");
+            });
+        }, e);
+        
+        // 💡 Logic 10: تحميل البيانات من Firebase
         function loadAllCodes() {
             onValue(codesRef, (snapshot) => {
-               // ... (الكود لم يتغير)
+                allCodesData = {};
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    data.uid = childSnapshot.key;
+                    allCodesData[childSnapshot.key] = data;
+                });
+                
+                // تحديث العرض لو كان فيه Tile مفتوحة
+                if (activeTile) {
+                    window.toggleAdminDetails(activeTile, true); 
+                }
+                
+                window.showToast("✅ تم تحديث بيانات لوحة GIZA.", "success");
             }, (error) => {
-               // ... (الكود لم يتغير)
+                window.showToast("❌ فشل الاتصال بقاعدة البيانات: " + error.message, "error");
             });
         }
-        
-        // 💡 Main Auth State Observer (احتفظ بها كما هي)
-        onAuthStateChanged(auth, (user) => {
-            // ... (الكود لم يتغير)
-        });
 
+        // 💡 Main Auth State Observer (تم التعديل لتنظيف الواجهة عند تسجيل الخروج)
+        onAuthStateChanged(auth, (user) => {
+            const loginContainer = document.getElementById('loginContainer');
+            const mainContent = document.getElementById('mainContent');
+            const logoutBtn = document.getElementById('logoutBtn');
+            
+            if (user) {
+                currentUserUid = user.uid; 
+                
+                // إذا كان المستخدم مسجل دخوله بالفعل عند تحميل الصفحة (Reload)
+                checkAdminStatus(user.uid).then(isVerified => {
+                    if (isVerified) {
+                        loginContainer.style.display = 'none';
+                        mainContent.style.display = 'block';
+                        logoutBtn.style.display = 'block';
+                        loadAllCodes(); // تحميل البيانات
+                    } else {
+                         // إذا فشل التحقق (في حال الـ Reload)، نغلق اللوحة
+                         currentUserUid = null;
+                         loginContainer.style.display = 'block';
+                         mainContent.style.display = 'none';
+                         logoutBtn.style.display = 'none';
+                    }
+                });
+
+            } else {
+                currentUserUid = null;
+                loginContainer.style.display = 'block';
+                mainContent.style.display = 'none';
+                logoutBtn.style.display = 'none';
+                // إفراغ الداتا
+                document.getElementById('codeDetailsContainer').innerHTML = '<p style="text-align:center; color:var(--secondary);">برجاء تسجيل الدخول لعرض البيانات.</p>';
+                activeTile = null; 
+            }
+        });
 
         // 💡 الدوال المساعدة للعرض
         
         function formatExpiry(timestamp) {
-            // ... (الكود لم يتغير)
+            const now = Date.now();
+            if (timestamp < now) return '<span style="color:red; font-weight:bold;">منتهي</span>';
+            const diff = timestamp - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            return `${days}ي ${hours}س`;
         }
         
-        // 💡 دالة تصنيف الأكواد (احتفظ بها كما هي)
+        // 💡 دالة تصنيف الأكواد
         function categorizeCodes(codes) {
-            // ... (الكود لم يتغير)
+            const now = Date.now();
+            return codes.reduce((acc, code) => {
+                const isExpired = code.expiry < now;
+                const isBlocked = code.isBlocked === true;
+
+                if (isExpired) {
+                    acc.expired.push(code);
+                } else if (isBlocked) {
+                    acc.manuallyBlocked.push(code);
+                } else {
+                    acc.active.push(code);
+                }
+                return acc;
+            }, { active: [], manuallyBlocked: [], expired: [] });
         }
 
         // 💡 Logic 13: تجديد صلاحية الكود المنتهي/القائم
@@ -206,7 +322,7 @@
             
             const updates = {
                 expiry: newExpiryTime,
-                isBlocked: false, // يتم تفعيله تلقائياً عند التجديد (إذا كان معطل يدوياً)
+                isBlocked: false, // يتم تفعيله تلقائياً عند التجديد 
                 pricePaid: totalAmount
             };
 
@@ -218,9 +334,8 @@
         });
 
 
-        // 💡 Logic 11: عرض الجدول النهائي بعد الفلترة (تم التعديل)
+        // 💡 Logic 11: عرض الجدول النهائي بعد الفلترة 
         window.renderFilteredCodesTable = (adminRole, categoryKey, categoryName) => {
-            // 💡 FIX 4: استرجاع البيانات من المتغير العالمي
             const filteredCodes = window.currentCategorizedData[categoryKey] || [];
             
             const container = document.getElementById('codeDetailsContainer');
@@ -264,7 +379,7 @@
                 const blockBtnText = isBlocked ? 'تفعيل' : 'تعطيل';
                 let actionsHtml;
                 
-                // 💡 NEW FEATURE: لو كود منتهي، اعرض تجديد وحذف
+                // الإجراءات الخاصة بالأكواد المنتهية
                 if (categoryKey === 'expired') { 
                     actionsHtml = `
                         <button onclick="renewCode('${data.uid}', '${data.name}')" class="unblock-btn" style="background: #007bff; color: white;">تجديد الكود</button>
@@ -299,16 +414,13 @@
             `;
         }
 
-        // 💡 Logic 12: عرض بطاقات التصنيف الثلاثة (تم التعديل)
+        // 💡 Logic 12: عرض بطاقات التصنيف الثلاثة
         window.toggleAdminDetails = (adminRole, forceOpen = false) => {
-             // التحقق قبل إجراء التبديل
              checkAuthAndProceed(() => {
                 const container = document.getElementById('codeDetailsContainer');
 
-                // إزالة التفعيل من جميع البطاقات الأصلية
                 document.querySelectorAll('.admin-tile').forEach(tile => tile.classList.remove('active-tile'));
                 
-                // تحديد الأكواد المراد فلترتها
                 let codesToFilter = [];
                 if (adminRole === 'TOTAL') {
                     codesToFilter = Object.values(allCodesData);
@@ -316,19 +428,15 @@
                     codesToFilter = Object.values(allCodesData).filter(code => (code.addedByAdmin || 'giza').toLowerCase() === adminRole.toLowerCase());
                 }
 
-                // إذا كان الضغط لفتح التفاصيل أو تم الضغط على زر العودة
                 if (activeTile !== adminRole || forceOpen) {
                     
-                    // تفعيل البطاقة المضغوط عليها
                     document.getElementById(`tile_${adminRole.toLowerCase().replace('total', 'total')}`).classList.add('active-tile');
                     activeTile = adminRole;
 
                     const categorized = categorizeCodes(codesToFilter);
                     
-                    // 💡 FIX 2: تخزين البيانات في المتغير العالمي
                     window.currentCategorizedData = categorized;
                     
-                    // بناء بطاقات التصنيف الجديدة
                     container.innerHTML = `
                         <h2 style="color:var(--primary); text-align:center;">إدارة أكواد: ${adminRole === 'TOTAL' ? 'المنصة الكلية' : adminRole}</h2>
                         <div class="admin-tiles sub-tiles-container">
