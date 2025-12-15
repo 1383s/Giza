@@ -166,6 +166,13 @@
             const customDays = parseInt(form.customDays.value) || 0;
             const newCode = document.getElementById('newCodeDisplay').textContent;
             
+            // 🔥 إضافة الشعبة
+            const section = form.studentSection.value;
+            if (section === "") {
+                window.showToast("❌ يجب تحديد شعبة الطالب (علمي/أدبي/أزهر).", "error");
+                return;
+            }
+            
             let expiryTime = Date.now();
             
             if (durationType === 'trial') {
@@ -182,6 +189,7 @@
             set(ref(db, 'approvedStudents/' + newCode), {
                 uid: newCode,
                 name: name,
+                section: section, // 🔥 حفظ الشعبة
                 pricePaid: price,
                 addedByAdmin: CURRENT_ADMIN_ROLE,
                 approvedAt: Date.now(),
@@ -198,7 +206,7 @@
             });
         }, e);
         
-        // 💡 Logic 10: تحميل البيانات من Firebase (تم التحديث ليشمل blockedDevices)
+        // 💡 Logic 10: تحميل البيانات من Firebase
         function loadAllCodes() {
             // 1. تحميل الأكواد المعتمدة
             onValue(codesRef, (snapshot) => {
@@ -235,13 +243,14 @@
                     data.deviceId = childSnapshot.key;
                     allBlockedDevices[childSnapshot.key] = data;
                 });
+                // هذه الرسالة يمكن أن تظهر خطأ إذا كانت قواعد Firebase غير مضبوطة (كما ظهر في Screenshot)
                 window.showToast("✅ تم تحديث بيانات لوحة GIZA (الأجهزة المحظورة).", "success");
             }, (error) => {
                 window.showToast("❌ فشل الاتصال بقاعدة بيانات الأجهزة المحظورة: " + error.message, "error");
             });
         }
 
-        // 💡 Main Auth State Observer (تم التعديل لتنظيف الواجهة عند تسجيل الخروج)
+        // 💡 Main Auth State Observer 
         onAuthStateChanged(auth, (user) => {
             const loginContainer = document.getElementById('loginContainer');
             const mainContent = document.getElementById('mainContent');
@@ -360,8 +369,75 @@
             .catch(e => window.showToast("❌ فشل التجديد: " + e.message, "error"));
         });
 
+        // 💡 Logic 18: فتح نافذة تعديل الاسم والشعبة
+        window.editCodeDetails = (uid) => checkAuthAndProceed(() => {
+            const data = allCodesData[uid];
+            if (!data) return;
 
-        // 💡 Logic 11: عرض الجدول النهائي بعد الفلترة 
+            const newName = prompt(`تعديل اسم الطالب الحالي: ${data.name}`, data.name);
+            if (newName === null) return; // المستخدم ألغى الأمر
+
+            const currentSection = data.section || 'N/A';
+            const newSection = prompt(`تعديل شعبة الطالب الحالي: ${currentSection}\n(ادخل: علمي علوم / علمي رياضة / أدبي / أزهر)`, currentSection);
+            if (newSection === null) return; // المستخدم ألغى الأمر
+
+            // استدعاء دالة الحفظ
+            saveEditedDetails(uid, newName, newSection);
+        });
+
+        // 💡 Logic 19: حفظ تعديلات الاسم والشعبة في Firebase
+        function saveEditedDetails(uid, newName, newSection) {
+            update(ref(db, 'approvedStudents/' + uid), {
+                name: newName,
+                section: newSection
+            }).then(() => {
+                window.showToast(`✅ تم تعديل بيانات كود ${uid} بنجاح.`, "success");
+            }).catch(e => window.showToast("❌ فشل تعديل البيانات: " + e.message, "error"));
+        }
+        
+        // 💡 Logic 20: نسخ كود الجهاز إلى الحافظة
+        window.copyDeviceID = (deviceId) => {
+            if (!deviceId || deviceId === 'غير مُفعل') {
+                window.showToast("❌ لا يوجد جهاز مفعل لنسخ كوده.", "error");
+                return;
+            }
+            navigator.clipboard.writeText(deviceId).then(() => {
+                window.showToast(`✅ تم نسخ كود الجهاز: ${deviceId}`, "success");
+            }).catch(err => {
+                window.showToast("❌ فشل النسخ. حاول يدوياً.", "error");
+            });
+        };
+        
+        // 💡 Logic 21: دالة مساعدة لحظر جهاز مباشرة من الجدول
+        window.addBlockedDevicePrompt = (deviceId) => checkAuthAndProceed(() => {
+            const notes = prompt(`هل تريد إضافة ملاحظات لحظر الجهاز (${deviceId})؟`, "تم حظره من قائمة الأكواد بسبب الاشتباه.");
+            if (notes === null) return; // إلغاء الحظر
+            
+            const relatedCodes = Object.values(allCodesData).filter(code => code.deviceId === deviceId.trim());
+            const relatedCodesString = relatedCodes.map(c => `${c.uid} (${c.name} - ${c.section || 'N/A'})`).join(' | '); 
+            const relatedStudents = relatedCodes.map(c => `${c.name} (${c.section || 'N/A'})`).join(', ') || "لا يوجد طلاب مسجلون";
+
+            set(ref(db, 'blockedDevices/' + deviceId.trim()), {
+                deviceId: deviceId.trim(),
+                blockedBy: CURRENT_ADMIN_ROLE, // GIZA
+                timestamp: Date.now(),
+                notes: notes || "لا توجد ملاحظات",
+                relatedCodes: relatedCodesString || "لم يُسجَّل على هذا الجهاز أي كود",
+                relatedStudents: relatedStudents
+            }).then(() => {
+                window.showToast(`✅ تم حظر الجهاز ${deviceId} بنجاح بواسطة ${CURRENT_ADMIN_ROLE}.`, "success");
+                // نعيد فتح لوحة الأجهزة المحظورة لتحديث القوائم إذا كانت مفتوحة
+                if (activeTile === 'BLOCKED_DEVICES') {
+                    window.toggleBlockedDevicesDetails('TOTAL', true);
+                }
+            }).catch(error => {
+                window.showToast("❌ فشل الحظر: " + error.message, "error");
+            });
+
+        });
+
+
+        // 💡 Logic 11: عرض الجدول النهائي بعد الفلترة - تم التعديل لإضافة عمود الشعبة وزري التعديل والنسخ والحظر
         window.renderFilteredCodesTable = (adminRole, categoryKey, categoryName) => {
             const filteredCodes = window.currentCategorizedData[categoryKey] || [];
             
@@ -379,7 +455,7 @@
                             <tr>
                                 <th>الكود (UID)</th>
                                 <th>اسم الطالب</th>
-                                <th>المبلغ</th>
+                                <th>الشعبة</th>  <th>المبلغ</th>
                                 <th>مدة الصلاحية</th>
                                 <th>حالة الكود</th>
                                 <th>جهاز التفعيل</th>
@@ -399,6 +475,7 @@
                 totalAmount += (data.pricePaid || 0);
                 const isBlocked = data.isBlocked === true;
                 const isExpired = data.expiry < Date.now();
+                const deviceId = data.deviceId; // جلب كود الجهاز
                 
                 let statusText = isExpired ? 'منتهي' : (isBlocked ? 'مُعطّل' : 'نشط');
                 let statusClass = isExpired ? 'status-expired' : (isBlocked ? 'status-blocked' : 'status-active');
@@ -406,15 +483,25 @@
                 const blockBtnText = isBlocked ? 'تفعيل' : 'تعطيل';
                 let actionsHtml;
                 
+                // الأزرار المشتركة للجهاز (للتأكد من وجود جهاز مفعل)
+                const deviceActions = deviceId ? `
+                    <button onclick="addBlockedDevicePrompt('${deviceId}')" class="delete-btn" style="background: var(--error);">🚫 حظر الجهاز</button>
+                    <button onclick="copyDeviceID('${deviceId}')" class="eject-btn" style="background: #00E8C8;">نسخ الجهاز</button>
+                ` : '';
+
                 // الإجراءات الخاصة بالأكواد المنتهية
                 if (categoryKey === 'expired') { 
                     actionsHtml = `
-                        <button onclick="renewCode('${data.uid}', '${data.name}')" class="unblock-btn" style="background: #007bff; color: white;">تجديد الكود</button>
+                        <button onclick="editCodeDetails('${data.uid}')" class="unblock-btn" style="background: #0099cc; color: white;">تعديل البيانات</button> 
+                        ${deviceActions} 
+                        <button onclick="renewCode('${data.uid}', '${data.name}')" class="unblock-btn" style="background: #007bff; color: white;">تجديد</button>
                         <button onclick="deleteCode('${data.uid}', '${data.name}')" class="delete-btn">حذف نهائي</button>
                     `;
                 } else {
                     // الإجراءات العادية للأكواد النشطة والمعطلة يدوياً
                     actionsHtml = `
+                        <button onclick="editCodeDetails('${data.uid}')" class="unblock-btn" style="background: #0099cc; color: white;">تعديل البيانات</button> 
+                        ${deviceActions} 
                         <button onclick="ejectDevice('${data.uid}', '${data.name}')" class="eject-btn">إخراج الجهاز</button>
                         <button onclick="toggleBlock('${data.uid}', '${data.name}', ${isBlocked})" class="${isBlocked ? 'unblock-btn' : 'block-btn'}">${blockBtnText}</button>
                         <button onclick="deleteCode('${data.uid}', '${data.name}')" class="delete-btn">حذف</button>
@@ -425,12 +512,13 @@
                 tr.innerHTML = `
                     <td class="code-uid">${data.uid}</td>
                     <td>${data.name}</td>
+                    <td>${data.section || 'N/A'}</td> 
                     <td>${data.pricePaid} ج.م</td>
                     <td style="min-width: 90px;">${formatExpiry(data.expiry)}</td>
                     <td class="${statusClass}">${statusText}</td>
                     <td class="device-id">${data.deviceId || 'غير مُفعل'}</td>
                     ${adminRole === 'TOTAL' ? `<td>${data.addedByAdmin || '-'}</td>` : ''}
-                    <td class="actions" style="min-width: 250px;">${actionsHtml}</td>
+                    <td class="actions" style="min-width: 450px;">${actionsHtml}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -441,7 +529,7 @@
             `;
         }
 
-        // 💡 Logic 12: عرض بطاقات التصنيف الثلاثة
+        // 💡 Logic 12: عرض بطاقات التصنيف الثلاثة (لم يتم تغييرها)
         window.toggleAdminDetails = (adminRole, forceOpen = false) => {
              checkAuthAndProceed(() => {
                 const container = document.getElementById('codeDetailsContainer');
@@ -510,7 +598,7 @@
             }
         };
 
-        // 💡 Logic 14: حظر جهاز جديد بواسطة GIZA
+        // 💡 Logic 14: حظر جهاز جديد بواسطة GIZA (للوصول المباشر من الزر في لوحة الحظر)
         window.addBlockedDevice = () => checkAuthAndProceed(() => {
             const deviceId = prompt("أدخل كود الجهاز (Device ID) الذي تريد حظره، مثال: DID-X1VZM373mj7ddqkz");
             if (!deviceId || deviceId.trim() === "") return;
@@ -519,8 +607,8 @@
 
             // البحث عن أكواد الطلاب المرتبطة بهذا الجهاز لتوفير معلومات عنها
             const relatedCodes = Object.values(allCodesData).filter(code => code.deviceId === deviceId.trim());
-            const relatedCodesString = relatedCodes.map(c => `${c.uid} (${c.name})`).join(' | ');
-            const relatedStudents = relatedCodes.map(c => c.name).join(', ') || "لا يوجد طلاب مسجلون";
+            const relatedCodesString = relatedCodes.map(c => `${c.uid} (${c.name} - ${c.section || 'N/A'})`).join(' | '); 
+            const relatedStudents = relatedCodes.map(c => `${c.name} (${c.section || 'N/A'})`).join(', ') || "لا يوجد طلاب مسجلون";
 
             set(ref(db, 'blockedDevices/' + deviceId.trim()), {
                 deviceId: deviceId.trim(),
@@ -544,7 +632,7 @@
             .catch(e => window.showToast("❌ فشل الإلغاء: " + e.message, "error"));
         });
         
-        // 💡 Logic 16: عرض جدول الأجهزة المحظورة
+        // 💡 Logic 16: عرض جدول الأجهزة المحظورة (لم يتغير)
         window.renderBlockedDevicesTable = (adminRole) => {
             const container = document.getElementById('codeDetailsContainer');
             
@@ -572,7 +660,7 @@
                         <thead>
                             <tr>
                                 <th>كود الجهاز (Device ID)</th>
-                                <th>الطلاب المرتبطون</th>
+                                <th>الطلاب المرتبطون (الاسم والشعبة)</th> 
                                 <th>الأكواد المُفعَّلة على الجهاز</th>
                                 <th>تاريخ الحظر</th>
                                 <th>بواسطة</th>
@@ -593,7 +681,7 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="code-uid">${data.deviceId}</td>
-                    <td>${data.relatedStudents || 'N/A'}</td>
+                    <td>${data.relatedStudents || 'N/A'}</td> 
                     <td>${data.relatedCodes || 'N/A'}</td>
                     <td>${new Date(data.timestamp).toLocaleString('ar-EG')}</td>
                     <td>${data.blockedBy || 'N/A'}</td>
@@ -605,7 +693,7 @@
             });
         }
 
-        // 💡 Logic 17: عرض بطاقات المشرفين لإدارة حظر الأجهزة
+        // 💡 Logic 17: عرض بطاقات المشرفين لإدارة حظر الأجهزة (لم يتغير)
         window.toggleBlockedDevicesDetails = (forceAdmin = 'TOTAL', forceOpen = false) => {
             checkAuthAndProceed(() => {
                 const container = document.getElementById('codeDetailsContainer');
@@ -651,6 +739,18 @@
             });
         };
         
+        window.toggleAddCodeForm = (show) => {
+            const form = document.getElementById('addCodeFormContainer');
+            if (show) {
+                checkAuthAndProceed(() => {
+                    form.style.display = 'block';
+                    document.getElementById('newCodeDisplay').textContent = generateUniqueCode();
+                });
+            } else {
+                form.style.display = 'none';
+            }
+        };
+
 
     </script>
     <style>
@@ -786,6 +886,15 @@
                 <label>اسم الطالب:</label>
                 <input type="text" name="studentName" required>
                 
+                <label>شعبة الطالب:</label>
+                <select name="studentSection" required>
+                    <option value="">اختر الشعبة</option>
+                    <option value="علمي علوم">علمي علوم</option>
+                    <option value="علمي رياضة">علمي رياضة</option>
+                    <option value="أدبي">أدبي</option>
+                    <option value="أزهر">أزهر</option>
+                </select>
+
                 <label>المبلغ المدفوع (جنيه):</label>
                 <input type="number" name="price" min="0" value="0">
 
