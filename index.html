@@ -59,7 +59,11 @@
         async function checkAdminStatus(uid) {
             try {
                 // التحقق من أن الـ UID ده موجود في مسار adminUids و دوره هو 'giza'
-                const adminRef = ref(db, `adminUids/${uid}`); 
+                // الكود اللي أنا إديتهولك كان كده (وبيفترض المسار ده)
+// const adminRef = ref(db, `adminUids/${uid}`); 
+
+// 🆕 التعديل الصحيح (لاستخدام المسار اللي إنتي عاملاه في الـ DB)
+                const adminRef = ref(db, `allowed_admins/${uid}`);
                 const snapshot = await get(adminRef);
                 
                 if (snapshot.exists() && snapshot.val().role === CURRENT_ADMIN_ROLE) {
