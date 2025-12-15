@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
-        import { getDatabase, ref, onValue, update, remove, set, get } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
+        import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
         // 🚨 إضافة Firebase Auth
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js'; 
 
@@ -23,7 +23,12 @@
         };
         
         // 🔑 تحديد دور اللوحة دي
-        const CURRENT_ADMIN_ROLE = 'giza'; // 🚨 استخدمنا اسم الدور
+        const CURRENT_ADMIN_ROLE = 'giza'; 
+
+        // 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
+        // 🚨 برجاء تغيير هذا الـ UID بالـ UID الفعلي لـ GIZA من الـ Rules
+        // 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
+        const GIZA_ALLOWED_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1"; 
         
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
@@ -32,12 +37,7 @@
         
         let allCodesData = {};
         let activeTile = null;
-        let currentUserUid = null; // 🚨 الـ UID بتاع الأدمن اللي عامل Logged In
-        
-        // 🚨🚨 مكان وضع الـ UID اليدوي (للتجربة أو التوثيق الداخلي)
-        // عند تسجيل الدخول، سيتم تحديث 'currentUserUid' تلقائيًا
-        // لو هتستخدمي UID ثابت للتحقق السريع (لا ينصح به أمنياً) ضعيه هنا:
-        const GIZA_FIXED_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1"; 
+        let currentUserUid = null; 
         
         
         // 🎨 Global UI Functions
@@ -55,26 +55,15 @@
             }, 5000);
         };
         
-        // 💡 Logic 1: التحقق من UID الأدمن الحالي وصلاحياته
+        // 💡 Logic 1: التحقق من UID الأدمن الحالي وصلاحياته (اللوجيك المعدل)
         async function checkAdminStatus(uid) {
-            try {
-                // التحقق من أن الـ UID ده موجود في مسار adminUids و دوره هو 'giza'
-                // الكود اللي أنا إديتهولك كان كده (وبيفترض المسار ده)
-// const adminRef = ref(db, `adminUids/${uid}`); 
-
-// 🆕 التعديل الصحيح (لاستخدام المسار اللي إنتي عاملاه في الـ DB)
-                const adminRef = ref(db, `allowed_admins/${uid}`);
-                const snapshot = await get(adminRef);
-                
-                if (snapshot.exists() && snapshot.val().role === CURRENT_ADMIN_ROLE) {
-                    return true;
-                } else {
-                    window.showToast("❌ تم إلغاء صلاحياتك كـ " + CURRENT_ADMIN_ROLE + ". برجاء تسجيل الخروج.", "error");
-                    return false;
-                }
-            } catch (error) {
-                console.error("Firebase Auth Check Error:", error);
-                window.showToast("❌ خطأ في التحقق من الصلاحيات. برجاء مراجعة اتصالك.", "error");
+            // 🚨 التحقق المباشر: هل الـ UID اللي سجل دخول هو UID المالك المُصرح به؟
+            if (uid === GIZA_ALLOWED_UID) {
+                return true;
+            } else {
+                window.showToast("❌ غير مُصرح لك بالدخول لهذه اللوحة. الـ UID غير مطابق لـ UID المالك.", "error");
+                // تسجيل الخروج لضمان الأمان
+                signOut(auth); 
                 return false;
             }
         }
@@ -99,7 +88,6 @@
             
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                // Firebase Auth بيحفظ الـ Token تلقائيًا في الـ Local Storage
                 window.showToast("✅ تم تسجيل الدخول بنجاح. جاري التحقق من الصلاحيات...", "success");
             } catch (error) {
                 window.showToast(`❌ فشل تسجيل الدخول: ${error.message}`, "error");
@@ -244,7 +232,7 @@
             }
         });
 
-        // 💡 الدوال المساعدة للعرض (formatExpiry, renderCodesTable, toggleAdminDetails, toggleAddCodeForm)
+        // 💡 الدوال المساعدة للعرض
         
         function formatExpiry(timestamp) {
             const now = Date.now();
@@ -440,6 +428,10 @@
             border: 2px solid var(--secondary); max-width: 500px; margin-left: auto; margin-right: auto;
         }
         #newCodeDisplay { font-family: monospace; font-size: 18px; color: var(--primary); font-weight: 700; direction: ltr; text-align: left; background: #111; padding: 5px; border-radius: 5px; }
+        #addCodeFormContainer input, #addCodeFormContainer select {
+            width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #444; border-radius: 5px; background: #333; color: var(--text-light);
+            margin-bottom: 10px;
+        }
 
         /* Toast */
         #toast-container { position: fixed; bottom: 20px; left: 20px; z-index: 10000; }
