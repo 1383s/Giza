@@ -8,7 +8,6 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
         import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
-        // 🚨 إضافة Firebase Auth
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js'; 
 
         const firebaseConfig = {
@@ -22,12 +21,8 @@
             measurementId: "G-J5R2EFM2D0"
         };
         
-        // 🔑 تحديد دور اللوحة دي
         const CURRENT_ADMIN_ROLE = 'giza'; 
-
-        // 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
-        // 🚨 برجاء تغيير هذا الـ UID بالـ UID الفعلي لـ GIZA من الـ Rules
-        // 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
+        // 🚨 يجب تغيير هذا الـ UID بالـ UID الفعلي للمالك (GIZA)
         const GIZA_ALLOWED_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1"; 
         
         const app = initializeApp(firebaseConfig);
@@ -36,7 +31,10 @@
         const codesRef = ref(db, 'approvedStudents');
         
         let allCodesData = {};
-        let activeTile = null;
+        let bannedDevices = {}; 
+        let allCodesArray = [];
+        let activeAdminRole = null;
+        let currentReportCodes = [];
         let currentUserUid = null; 
         
         
@@ -55,14 +53,12 @@
             }, 5000);
         };
         
-        // 💡 Logic 1: التحقق من UID الأدمن الحالي وصلاحياته (اللوجيك المعدل)
+        // 💡 Logic 1: التحقق من UID الأدمن الحالي وصلاحياته
         async function checkAdminStatus(uid) {
-            // 🚨 التحقق المباشر: هل الـ UID اللي سجل دخول هو UID المالك المُصرح به؟
             if (uid === GIZA_ALLOWED_UID) {
                 return true;
             } else {
                 window.showToast("❌ غير مُصرح لك بالدخول لهذه اللوحة. الـ UID غير مطابق لـ UID المالك.", "error");
-                // تسجيل الخروج لضمان الأمان
                 signOut(auth); 
                 return false;
             }
@@ -74,7 +70,6 @@
                 window.showToast("❌ يجب تسجيل الدخول أولًا لإجراء أي عملية.", "error");
                 return;
             }
-            // 🚨 التحقق من الـ UID في كل عملية
             if (await checkAdminStatus(currentUserUid)) { 
                 action(...args);
             }
@@ -98,6 +93,7 @@
         window.logout = async () => {
             await signOut(auth);
             window.showToast("👋 تم تسجيل الخروج بنجاح.", "warn");
+            window.location.reload(); 
         };
 
         // 💡 Logic 5: توليد كود عشوائي فريد
@@ -178,26 +174,300 @@
             });
         }, e);
         
-        // 💡 Logic 10: تحميل البيانات من Firebase (فقط عند الدخول)
+        // 💡 Logic 10: تحميل البيانات من Firebase (يشمل الأكواد والأجهزة المحظورة)
         function loadAllCodes() {
-            onValue(codesRef, (snapshot) => {
+             // 1. تحميل الأكواد المعتادة
+             onValue(codesRef, (snapshot) => {
                 allCodesData = {};
+                allCodesArray = []; 
                 snapshot.forEach((childSnapshot) => {
                     const data = childSnapshot.val();
                     data.uid = childSnapshot.key;
                     allCodesData[childSnapshot.key] = data;
+                    allCodesArray.push(data);
                 });
                 
-                // تحديث العرض لو كان فيه Tile مفتوحة
-                if (activeTile) {
-                    window.toggleAdminDetails(activeTile);
-                }
-                
+                // 2. تحديث الإحصائيات أو العرض بناءً على الحالة الحالية
+                updateGizaDashboard(true);
                 window.showToast("✅ تم تحديث بيانات لوحة GIZA.", "success");
             }, (error) => {
                 window.showToast("❌ فشل الاتصال بقاعدة البيانات: " + error.message, "error");
             });
+
+             // 3. تحميل الأجهزة المحظورة
+             onValue(ref(db, 'bannedDevices'), (snapshot) => {
+                 bannedDevices = {};
+                 
+                 if(snapshot.exists()) {
+                    snapshot.forEach(childSnapshot => {
+                        const deviceId = childSnapshot.key;
+                        bannedDevices[deviceId] = childSnapshot.val();
+                    });
+                 }
+                 // تحديث عرض الأجهزة المحظورة إذا كانت اللوحة مفتوحة
+                 if (activeAdminRole === 'BANNED') {
+                     renderBannedDevicesTable();
+                 }
+             }, (error) => {
+                 window.showToast("❌ فشل تحميل قائمة الأجهزة المحظورة.", "error");
+             });
         }
+        
+        // 💡 Logic 11: تحديث واجهة المالك (يحسب الإحصائيات ويحدث العرض)
+        function updateGizaDashboard(fullUpdate = false) {
+             const adminRoles = ['sara', 'ahmed', 'giza', 'TOTAL'];
+             const stats = {};
+             const now = Date.now();
+             
+             // 1. حساب الإحصائيات للبطاقات الرئيسية
+             adminRoles.forEach(role => {
+                 stats[role] = { total: 0, active: 0, blocked: 0, expired: 0, amount: 0 };
+                 
+                 const roleCodes = allCodesArray.filter(code => 
+                    role === 'TOTAL' || (code.addedByAdmin || 'giza').toLowerCase() === role.toLowerCase()
+                 );
+                 
+                 roleCodes.forEach(code => {
+                     stats[role].total++;
+                     stats[role].amount += (code.pricePaid || 0);
+                     
+                     const isBlocked = code.isBlocked === true;
+                     const isExpired = code.expiry < now;
+
+                     if (isExpired) {
+                         stats[role].expired++;
+                     } else if (isBlocked) {
+                         stats[role].blocked++;
+                     } else {
+                         stats[role].active++;
+                     }
+                 });
+                 
+                 // تحديث البطاقات الرئيسية
+                 const tileCountElement = document.getElementById(`count_${role.toLowerCase()}`);
+                 if (tileCountElement) {
+                     tileCountElement.textContent = stats[role].total;
+                 }
+             });
+
+             // 2. تحديث عرض التقرير المفتوح حاليًا
+             if (activeAdminRole && activeAdminRole !== 'BANNED' && (document.getElementById('reportCardsContainer').style.display === 'flex' || fullUpdate)) {
+                 // ده بيعمل Drill-Down تاني على الدور النشط (لإعادة حساب الإحصائيات الفرعية)
+                 window.toggleAdminDetails(activeAdminRole, stats[activeAdminRole]); 
+             } else if (activeAdminRole === 'BANNED') {
+                 // تحديث لوحة الأجهزة المحظورة
+                 renderBannedDevicesTable();
+             }
+        }
+        
+        // 💡 Logic 12: التبديل بين محتوى الأدمن (Drill-Down: الدور -> البطاقات الفرعية)
+        window.toggleAdminDetails = (adminRole, stats = null) => {
+            checkAuthAndProceed(() => {
+                const reportArea = document.getElementById('reportDisplayArea');
+                const reportsContainer = document.getElementById('reportCardsContainer');
+                const bannedArea = document.getElementById('bannedDevicesContainer');
+                const newActiveRole = adminRole === activeAdminRole ? null : adminRole;
+                
+                // 1. إغلاق الكل (إلغاء التحديد)
+                document.querySelectorAll('.admin-tile').forEach(tile => tile.classList.remove('active-tile'));
+                reportArea.style.display = 'none';
+                reportsContainer.style.display = 'none';
+                bannedArea.style.display = 'none';
+
+                // 2. لو اليوزر ضغط مرتين على نفس البطاقة (إغلاق)
+                if (newActiveRole === null) {
+                    document.getElementById('codeDetailsContainer').innerHTML = '<p style="text-align:center; color:var(--secondary);">اضغط على إحدى البطاقات أعلاه لعرض التفاصيل.</p>';
+                    activeAdminRole = null;
+                    return;
+                }
+                
+                // 3. تفعيل الدور الجديد
+                document.getElementById(`tile_${newActiveRole.toLowerCase()}`).classList.add('active-tile');
+                activeAdminRole = newActiveRole;
+
+                // 4. عرض المحتوى المناسب
+                if (activeAdminRole === 'BANNED') {
+                    bannedArea.style.display = 'block';
+                    // إخفاء الـ details container عشان متظهرش الرسالة بتاعة التقرير
+                    document.getElementById('codeDetailsContainer').style.display = 'none';
+                    renderBannedDevicesTable();
+                    
+                } else {
+                    // 5. عرض البطاقات الفرعية (Drill-Down)
+                    reportsContainer.style.display = 'flex';
+                    // إظهار الـ details container
+                    document.getElementById('codeDetailsContainer').style.display = 'block';
+                    
+                    // حساب الإحصائيات
+                    const roleStats = stats || calculateRoleStats(activeAdminRole);
+
+                    document.getElementById('statActiveCount').textContent = roleStats.active;
+                    document.getElementById('statBlockedCount').textContent = roleStats.blocked;
+                    document.getElementById('statExpiredCount').textContent = roleStats.expired;
+                    
+                    // مسح أي تقرير فرعي كان مفتوح
+                    document.getElementById('codeDetailsContainer').innerHTML = '<p style="text-align:center; color:var(--secondary);">اختر فئة من البطاقات الفرعية أعلاه لعرض الأكواد.</p>';
+                    document.getElementById('reportDisplayArea').removeAttribute('data-active-report');
+                    document.getElementById('reportTitle').textContent = '';
+                }
+            });
+        };
+
+        // 💡 Logic 13: التبديل بين محتوى البطاقات الفرعية (الحالة -> الجدول)
+        window.toggleReportDisplay = (reportType, forceUpdate = false) => {
+            const displayArea = document.getElementById('reportDisplayArea');
+            const currentActive = displayArea.getAttribute('data-active-report');
+            const searchInput = document.getElementById('searchInput');
+            const now = Date.now();
+            
+            // 1. تحديد الأكواد حسب الدور النشط
+            let baseCodes = allCodesArray.filter(code => 
+                activeAdminRole === 'TOTAL' || (code.addedByAdmin || 'giza').toLowerCase() === activeAdminRole.toLowerCase()
+            );
+
+            // 2. تطبيق فلترة الحالة
+            let filteredCodes = [];
+            let title = "";
+            
+            if (reportType === 'active') {
+                title = `الأكواد المفعّلة (${activeAdminRole === 'TOTAL' ? 'الإجمالي' : activeAdminRole})`;
+                filteredCodes = baseCodes.filter(c => c.isBlocked !== true && c.expiry >= now);
+            } else if (reportType === 'blocked') {
+                title = `الأكواد المعطّلة يدويًا (${activeAdminRole === 'TOTAL' ? 'الإجمالي' : activeAdminRole})`;
+                filteredCodes = baseCodes.filter(c => c.isBlocked === true);
+            } else if (reportType === 'expired') {
+                title = `الأكواد منتهية الصلاحية (${activeAdminRole === 'TOTAL' ? 'الإجمالي' : activeAdminRole})`;
+                filteredCodes = baseCodes.filter(c => c.expiry < now);
+            }
+            
+            currentReportCodes = filteredCodes;
+
+            // 3. تطبيق خاصية التبديل (Toggling)
+            if (currentActive === reportType && !forceUpdate) {
+                // لو ضغط مرة ثانية: إغلاق التقرير الفرعي
+                displayArea.style.display = 'none';
+                displayArea.removeAttribute('data-active-report');
+                document.getElementById('codeDetailsContainer').innerHTML = '<p style="text-align:center; color:var(--secondary);">اختر فئة من البطاقات الفرعية أعلاه لعرض الأكواد.</p>';
+                document.getElementById('reportTitle').textContent = '';
+                searchInput.value = ''; 
+                
+            } else {
+                // لو بيفتح تقرير جديد أو تحديث
+                displayArea.style.display = 'block';
+                displayArea.setAttribute('data-active-report', reportType);
+                document.getElementById('reportTitle').textContent = title;
+                searchInput.value = ''; 
+                
+                renderCodesTable(filteredCodes, activeAdminRole);
+            }
+        };
+        
+        // 💡 Logic 14: البحث بالكود أو الاسم في الفئة الحالية
+        window.filterTable = () => {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            if (searchTerm.length === 0) {
+                renderCodesTable(currentReportCodes, activeAdminRole);
+                return;
+            }
+
+            const results = currentReportCodes.filter(data => 
+                (data.uid && data.uid.toLowerCase().includes(searchTerm)) || 
+                (data.name && data.name.toLowerCase().includes(searchTerm))
+            );
+            
+            renderCodesTable(results, activeAdminRole);
+        };
+        
+        // 💡 Logic 15: حظر جهاز جديد
+        window.banDevice = () => checkAuthAndProceed(async () => {
+            const deviceId = prompt("أدخل Device ID الجهاز الذي تريد حظره:");
+            if (!deviceId || deviceId.length < 5) {
+                window.showToast("❌ يجب إدخال Device ID صحيح للحظر.", "error");
+                return;
+            }
+            const deviceIdKey = deviceId.trim().replace(/[^a-zA-Z0-9]/g, ''); // تنظيف الـ ID
+            
+            try {
+                await set(ref(db, `bannedDevices/${deviceIdKey}`), {
+                    bannedBy: currentUserUid,
+                    bannedAt: Date.now(),
+                    deviceId: deviceIdKey
+                });
+                window.showToast(`✅ تم حظر الجهاز ${deviceIdKey} بنجاح.`, "success");
+                
+            } catch (error) {
+                window.showToast("❌ فشل حظر الجهاز: " + error.message, "error");
+            }
+        });
+
+        // 💡 Logic 16: إلغاء حظر جهاز
+        window.unbanDevice = (deviceId) => checkAuthAndProceed(async () => {
+            if (!confirm(`هل أنت متأكد من إلغاء حظر الجهاز ${deviceId}؟`)) return;
+            try {
+                await remove(ref(db, `bannedDevices/${deviceId}`));
+                window.showToast(`✅ تم إلغاء حظر الجهاز ${deviceId} بنجاح.`, "success");
+            } catch (error) {
+                window.showToast("❌ فشل إلغاء الحظر: " + error.message, "error");
+            }
+        });
+
+        // 💡 Logic 17: عرض جدول الأجهزة المحظورة
+        function renderBannedDevicesTable() {
+             const container = document.getElementById('bannedDevicesTableBody');
+             container.innerHTML = '';
+
+             const bannedList = Object.values(bannedDevices);
+             
+             if (bannedList.length === 0) {
+                 container.innerHTML = '<tr><td colspan="4">لا توجد أجهزة محظورة حاليًا.</td></tr>';
+                 return;
+             }
+
+             bannedList.forEach(device => {
+                 const relatedCodes = allCodesArray.filter(code => code.deviceId === device.deviceId);
+                 const codeNames = relatedCodes.map(c => `${c.name} (${c.uid})`).join('<br>');
+                 
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `
+                    <td class="device-id">${device.deviceId}</td>
+                    <td>${new Date(device.bannedAt).toLocaleString()}</td>
+                    <td>${codeNames || '-'}</td>
+                    <td class="actions">
+                        <button onclick="unbanDevice('${device.deviceId}')" class="unblock-btn">إلغاء الحظر</button>
+                    </td>
+                 `;
+                 container.appendChild(tr);
+             });
+        }
+        
+        // 💡 دالة مساعدة لحساب الإحصائيات (تُستخدم في Drill-Down)
+        function calculateRoleStats(adminRole) {
+            const stats = { total: 0, active: 0, blocked: 0, expired: 0, amount: 0 };
+            const now = Date.now();
+            
+            const roleCodes = allCodesArray.filter(code => 
+               adminRole === 'TOTAL' || (code.addedByAdmin || 'giza').toLowerCase() === adminRole.toLowerCase()
+            );
+            
+            roleCodes.forEach(code => {
+                stats.total++;
+                stats.amount += (code.pricePaid || 0);
+                
+                const isBlocked = code.isBlocked === true;
+                const isExpired = code.expiry < now;
+
+                if (isExpired) {
+                    stats.expired++;
+                } else if (isBlocked) {
+                    stats.blocked++;
+                } else {
+                    stats.active++;
+                }
+            });
+            return stats;
+        }
+
 
         // 💡 Main Auth State Observer
         onAuthStateChanged(auth, (user) => {
@@ -206,19 +476,15 @@
             const logoutBtn = document.getElementById('logoutBtn');
             
             if (user) {
-                // 🚨 حفظ الـ UID عند الدخول
                 currentUserUid = user.uid; 
                 
-                // نتحقق من صلاحياته قبل ما نعرض الداتا
                 checkAdminStatus(user.uid).then(isVerified => {
                     if (isVerified) {
                         loginContainer.style.display = 'none';
                         mainContent.style.display = 'block';
                         logoutBtn.style.display = 'block';
-                        // 🚨 حمل الداتا بعد التحقق
                         loadAllCodes(); 
                     } else {
-                         // لو غير موثق بالرغم من تسجيل الدخول
                         signOut(auth); 
                     }
                 });
@@ -227,7 +493,6 @@
                 loginContainer.style.display = 'block';
                 mainContent.style.display = 'none';
                 logoutBtn.style.display = 'none';
-                // إفراغ الداتا
                 document.getElementById('codeDetailsContainer').innerHTML = '<p style="text-align:center; color:var(--secondary);">برجاء تسجيل الدخول لعرض البيانات.</p>';
             }
         });
@@ -245,7 +510,12 @@
         
         function renderCodesTable(filteredCodes, adminRole) {
             const container = document.getElementById('codeDetailsContainer');
+            // 🚨 تحديث الهيكل لعرض الجدول الجديد مع شريط البحث والزر
             container.innerHTML = `
+                <div class="search-container">
+                    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="ابحث بالكود أو الاسم..." />
+                    <button onclick="clearSearchAndTable()">إغلاق التقرير ❌</button>
+                </div>
                 <h2>الأكواد المضافة بواسطة ${adminRole === 'TOTAL' ? 'جميع الأدمنز' : adminRole} (${filteredCodes.length} كود)</h2>
                 <div class="table-responsive">
                     <table>
@@ -272,10 +542,28 @@
             
             filteredCodes.forEach(data => {
                 totalAmount += (data.pricePaid || 0);
+                
+                const now = Date.now();
+                const isExpired = data.expiry < now;
                 const isBlocked = data.isBlocked === true;
-                const statusText = isBlocked ? 'مُعطّل' : 'نشط';
-                const statusClass = isBlocked ? 'status-blocked' : 'status-active';
+                
+                let statusText;
+                let statusClass;
+
+                if (isExpired) {
+                    statusText = 'منتهي الصلاحية';
+                    statusClass = 'status-expired';
+                } else if (isBlocked) {
+                    statusText = 'مُعطّل يدويًا';
+                    statusClass = 'status-blocked';
+                } else {
+                    statusText = 'نشط';
+                    statusClass = 'status-active';
+                }
+                
                 const blockBtnText = isBlocked ? 'تفعيل' : 'تعطيل';
+                const ejectDisabled = isExpired || isBlocked ? 'disabled' : '';
+                const ejectTitle = isExpired || isBlocked ? 'لا يمكن إخراج الجهاز لكود غير نشط' : '';
                 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -285,9 +573,9 @@
                     <td>${formatExpiry(data.expiry)}</td>
                     <td class="${statusClass}">${statusText}</td>
                     <td class="device-id">${data.deviceId || 'غير مُفعل'}</td>
-                    ${adminRole === 'TOTAL' ? `<td>${data.addedByAdmin || '-'}</td>` : ''}
+                    ${adminRole === 'TOTAL' ? `<td>${data.addedByAdmin || 'giza'}</td>` : ''}
                     <td class="actions">
-                        <button onclick="ejectDevice('${data.uid}', '${data.name}')" class="eject-btn">إخراج الجهاز</button>
+                        <button onclick="ejectDevice('${data.uid}', '${data.name}')" class="eject-btn" ${ejectDisabled} title="${ejectTitle}">إخراج الجهاز</button>
                         <button onclick="toggleBlock('${data.uid}', '${data.name}', ${isBlocked})" class="${isBlocked ? 'unblock-btn' : 'block-btn'}">${blockBtnText}</button>
                         <button onclick="deleteCode('${data.uid}', '${data.name}')" class="delete-btn">حذف</button>
                     </td>
@@ -297,54 +585,18 @@
             
             const footer = document.getElementById(`adminStats_${adminRole}`);
             footer.innerHTML = `
-                <p>إجمالي الأكواد: <strong>${filteredCodes.length}</strong> | إجمالي المبلغ المحصّل: <strong style="color: var(--secondary);">${totalAmount.toLocaleString()} ج.م</strong></p>
+                <p>إجمالي الأكواد في هذا التقرير: <strong>${filteredCodes.length}</strong> | إجمالي المبلغ المحصّل في هذا التقرير: <strong style="color: var(--secondary);">${totalAmount.toLocaleString()} ج.م</strong></p>
             `;
         }
         
-        window.toggleAdminDetails = (adminRole) => {
-             // التحقق قبل إجراء التبديل
-             checkAuthAndProceed(() => {
-                const container = document.getElementById('codeDetailsContainer');
-                const newActiveTile = adminRole === activeTile ? null : adminRole;
-                
-                if (activeTile) {
-                    document.getElementById(`tile_${activeTile.toLowerCase()}`).classList.remove('active-tile');
-                }
-                
-                if (newActiveTile === null) {
-                    container.innerHTML = '<p style="text-align:center; color:var(--secondary);">اضغط على إحدى البطاقات أعلاه لعرض التفاصيل.</p>';
-                    activeTile = null;
-                    return;
-                }
-                
-                document.getElementById(`tile_${newActiveTile.toLowerCase()}`).classList.add('active-tile');
-                activeTile = newActiveTile;
-                
-                let filteredCodes = [];
-                
-                if (adminRole === 'TOTAL') {
-                    filteredCodes = Object.values(allCodesData);
-                } else {
-                    filteredCodes = Object.values(allCodesData).filter(code => (code.addedByAdmin || 'giza').toLowerCase() === adminRole.toLowerCase());
-                }
-
-                renderCodesTable(filteredCodes, adminRole);
-            });
+        window.clearSearchAndTable = () => {
+             // إغلاق التقرير الفرعي اللي كان مفتوح
+             const activeReport = document.getElementById('reportDisplayArea').getAttribute('data-active-report');
+             if(activeReport) {
+                window.toggleReportDisplay(activeReport); // هيعمل toggle وإغلاق
+             }
         };
         
-        window.toggleAddCodeForm = (show) => {
-            const form = document.getElementById('addCodeFormContainer');
-            if (show) {
-                // التحقق قبل فتح الفورم
-                checkAuthAndProceed(() => {
-                    form.style.display = 'block';
-                    document.getElementById('newCodeDisplay').textContent = generateUniqueCode();
-                });
-            } else {
-                form.style.display = 'none';
-            }
-        };
-
 
     </script>
     <style>
@@ -358,7 +610,7 @@
             --bg-mid: #222;
             --hover-dark: #333;
             --tile-bg: #1A1A1A;
-            --tile-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+            --tile-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
         }
         * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
         body { background: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; }
@@ -391,13 +643,72 @@
         .admin-tile.active-tile { background: var(--primary); color: var(--bg-dark); transform: scale(1.05); }
         .admin-tile.active-tile h3 { color: var(--bg-dark); }
 
-        /* Add Code Button */
-        .add-code-btn {
-            background: var(--secondary); color: var(--bg-dark); padding: 12px 25px; 
-            border: none; border-radius: 8px; font-weight: 700; cursor: pointer; 
-            transition: 0.3s; margin-bottom: 20px; display: block; width: 250px; margin: 0 auto 20px auto;
+        /* Report Cards Container */
+        .report-cards-container {
+            display: none; 
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 25px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 10px;
         }
-        .add-code-btn:hover { background: var(--primary); }
+        .report-card {
+            flex: 1;
+            background: #2b2b2b;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-top: 5px solid transparent;
+            transition: 0.2s;
+        }
+        .report-card:hover { opacity: 0.8; }
+        .report-card p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+        .report-card strong {
+            display: block;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        /* Card Colors */
+        #cardActive { border-top-color: var(--primary); }
+        #cardBlocked { border-top-color: var(--warn); }
+        #cardExpired { border-top-color: var(--error); }
+        #cardActive strong { color: var(--primary); }
+        #cardBlocked strong { color: var(--warn); }
+        #cardExpired strong { color: var(--error); }
+        
+        /* Search Container */
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #333;
+            border-radius: 8px;
+        }
+        #searchInput {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #222;
+            color: var(--text-light);
+        }
+        .search-container button {
+            background: var(--error);
+            color: var(--text-light);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 700;
+        }
 
         /* Code Details Section */
         #codeDetailsContainer { background: var(--bg-mid); padding: 20px; border-radius: 10px; margin-top: 30px; }
@@ -411,9 +722,11 @@
         /* Status & Actions */
         .status-active { color: var(--primary); font-weight: 700; }
         .status-blocked { color: var(--warn); font-weight: 700; }
+        .status-expired { color: var(--error); font-weight: 700; }
         .actions button {
             padding: 5px 10px; border: none; border-radius: 5px; cursor: pointer; margin: 2px; font-weight: 700; transition: 0.2s;
         }
+        .actions button[disabled] { opacity: 0.5; cursor: not-allowed; }
         .eject-btn { background: #0099cc; color: var(--text-light); }
         .block-btn { background: var(--warn); color: var(--bg-dark); }
         .unblock-btn { background: var(--primary); color: var(--bg-dark); }
@@ -432,6 +745,14 @@
             width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #444; border-radius: 5px; background: #333; color: var(--text-light);
             margin-bottom: 10px;
         }
+        
+        /* Banned Devices Style */
+        .banned-controls { margin-bottom: 15px; }
+        .banned-controls button { background: var(--error); margin-bottom: 10px; }
+        #bannedDevicesTableContainer { background: #1a1a1a; padding: 15px; border-radius: 8px; }
+        #bannedDevicesTableContainer table { width: 100%; }
+        #bannedDevicesTableContainer th { background: #555; }
+
 
         /* Toast */
         #toast-container { position: fixed; bottom: 20px; left: 20px; z-index: 10000; }
@@ -495,24 +816,69 @@
         <div class="admin-tiles">
             <div id="tile_sara" class="admin-tile" onclick="toggleAdminDetails('sara')">
                 <h3>Sara</h3>
-                <p>إدارة أكواد سارة</p>
+                <p id="count_sara">0</p>
             </div>
             <div id="tile_ahmed" class="admin-tile" onclick="toggleAdminDetails('ahmed')">
                 <h3>Ahmed</h3>
-                <p>إدارة أكواد أحمد</p>
+                <p id="count_ahmed">0</p>
             </div>
             <div id="tile_giza" class="admin-tile" onclick="toggleAdminDetails('giza')">
                 <h3>GIZA (أكوادك)</h3>
-                <p>إدارة الأكواد المضافة بواسطتك</p>
+                <p id="count_giza">0</p>
             </div>
             <div id="tile_total" class="admin-tile" onclick="toggleAdminDetails('TOTAL')">
-                <h3>📊 إحصائيات المنصة الكلية</h3>
-                <p>عرض كل الأكواد والمبالغ</p>
+                <h3>📊 إجمالي المنصة</h3>
+                <p id="count_total">0</p>
+            </div>
+            <div id="tile_banned" class="admin-tile" onclick="toggleAdminDetails('BANNED')" style="border-color:var(--error); box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);">
+                <h3>🔒 حظر الأجهزة</h3>
+                <p>إدارة الأجهزة المحظورة</p>
             </div>
         </div>
         
-        <div id="codeDetailsContainer">
-            <p style="text-align:center; color:var(--secondary);">اضغط على إحدى البطاقات أعلاه لعرض التفاصيل.</p>
+        <div id="reportCardsContainer" class="report-cards-container">
+            <div class="report-card" id="cardActive" onclick="toggleReportDisplay('active')">
+                <p>الأكواد المفعّلة</p>
+                <strong id="statActiveCount">0</strong>
+            </div>
+            <div class="report-card" id="cardBlocked" onclick="toggleReportDisplay('blocked')">
+                <p>المعطّلة يدويًا</p>
+                <strong id="statBlockedCount">0</strong>
+            </div>
+            <div class="report-card" id="cardExpired" onclick="toggleReportDisplay('expired')">
+                <p>منتهية الصلاحية</p>
+                <strong id="statExpiredCount">0</strong>
+            </div>
+        </div>
+
+        <div id="bannedDevicesContainer" style="display:none; margin-top: 30px; padding: 20px; background: var(--bg-mid); border-radius: 10px;">
+            <h2>🔒 الأجهزة المحظورة</h2>
+            <div class="banned-controls">
+                <button class="add-code-btn" onclick="banDevice()">+ حظر جهاز جديد (Device ID)</button>
+            </div>
+            <div class="table-responsive" id="bannedDevicesTableContainer">
+                 <table>
+                    <thead>
+                        <tr>
+                            <th>Device ID</th>
+                            <th>تاريخ الحظر</th>
+                            <th>الأكواد المرتبطة (اسم/كود)</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bannedDevicesTableBody">
+                        <tr><td colspan="4">جاري تحميل الأجهزة المحظورة...</td></tr>
+                    </tbody>
+                 </table>
+            </div>
+        </div>
+        
+        <div id="reportDisplayArea" style="display:none;">
+            <h2 id="reportTitle"></h2>
+            
+            <div id="codeDetailsContainer">
+                <p style="text-align:center; color:var(--secondary);">اضغط على إحدى البطاقات أعلاه لعرض التفاصيل.</p>
+            </div>
         </div>
     </div>
 
