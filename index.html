@@ -90,8 +90,7 @@
 
         window.handleSearch = (query) => {
             currentSearchQuery = query.toLowerCase().trim();
-            // إعادة الرندر للجدول المفتوح حالياً بناءً على البحث
-            if (activeTile && !activeTile.startsWith('BLOCKED')) {
+            if (activeTile && !activeTile.startsWith('BLOCKED') && !activeTile.startsWith('COLLECTION')) {
                 const titleNode = document.querySelector('#codeDetailsContainer h2');
                 if (titleNode) {
                     const title = titleNode.innerText;
@@ -182,7 +181,10 @@
         function loadAllCodes() {
             onValue(codesRef, (snap) => {
                 allCodesData = snap.val() || {};
-                if (activeTile && !activeTile.startsWith('BLOCKED')) window.toggleAdminDetails(activeTile, true);
+                if (activeTile) {
+                    if (activeTile === 'COLLECTION') window.toggleCollectionDetails();
+                    else if (!activeTile.startsWith('BLOCKED')) window.toggleAdminDetails(activeTile, true);
+                }
             });
             onValue(blockedDevicesRef, (snap) => {
                 allBlockedDevices = snap.val() || {};
@@ -287,6 +289,25 @@
                     </table></div>`;
         };
 
+        // 🔥 قسم التحصيل الجديد
+        window.toggleCollectionDetails = () => {
+            activeTile = 'COLLECTION';
+            const container = document.getElementById('codeDetailsContainer');
+            const data = Object.values(allCodesData);
+            
+            const calc = (admin) => data.filter(c => (c.addedByAdmin || 'giza').toLowerCase() === admin).reduce((sum, c) => sum + (parseFloat(c.pricePaid) || 0), 0);
+            const total = data.reduce((sum, c) => sum + (parseFloat(c.pricePaid) || 0), 0);
+
+            container.innerHTML = `
+                <h2 style="color:var(--secondary); text-align:center;">💰 إجمالي التحصيل المالي</h2>
+                <div class="admin-tiles">
+                    <div class="admin-tile" style="border-color:#ff00ff;"><h3>${calc('sara').toLocaleString()} ج.م</h3><p>تحصيل سارة</p></div>
+                    <div class="admin-tile" style="border-color:#00ffff;"><h3>${calc('ahmed').toLocaleString()} ج.م</h3><p>تحصيل أحمد</p></div>
+                    <div class="admin-tile" style="border-color:var(--primary);"><h3>${calc('giza').toLocaleString()} ج.م</h3><p>تحصيل الجيزة</p></div>
+                    <div class="admin-tile" style="background:var(--primary); color:#000;"><h3>${total.toLocaleString()} ج.م</h3><p style="color:#000; font-weight:bold;">إجمالي المنصة</p></div>
+                </div>`;
+        };
+
         window.unblockDevice = (id) => remove(ref(db, 'blockedDevices/' + id));
         window.toggleAddCodeForm = (s) => { document.getElementById('addCodeFormContainer').style.display = s ? 'block' : 'none'; if(s) document.getElementById('newCodeDisplay').textContent = generateUniqueCode(); };
         window.copyDeviceID = (id) => { navigator.clipboard.writeText(id).then(() => window.showToast("✅ تم النسخ")); };
@@ -297,7 +318,6 @@
         body { background: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; }
         .container { max-width: 1200px; margin: 30px auto; padding: 20px; }
         
-        /* Modal Style */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 10000; }
         .modal-content { background: var(--bg-mid); padding: 30px; border-radius: 15px; border: 1px solid var(--secondary); width: 90%; max-width: 400px; }
         .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; background: #222; border: 1px solid #444; color: #fff; }
@@ -365,6 +385,7 @@
             <div class="admin-tile" onclick="toggleAdminDetails('ahmed')"><h3>Ahmed</h3></div>
             <div class="admin-tile" onclick="toggleAdminDetails('giza')"><h3>GIZA</h3></div>
             <div class="admin-tile" style="border-color:var(--error);" onclick="toggleBlockedDevicesDetails()"><h3>🚫 الحظر</h3></div>
+            <div class="admin-tile" style="border-color:var(--secondary);" onclick="toggleCollectionDetails()"><h3>💰 التحصيل</h3></div>
             <div class="admin-tile" onclick="toggleAdminDetails('TOTAL')"><h3>📊 الكل</h3></div>
         </div>
 
