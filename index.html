@@ -1,233 +1,14 @@
-
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIZA - لوحة تحكم المالك 👑</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root { 
-            --bg-dark: #0a0a0a; 
-            --primary: #00FF00; 
-            --secondary: #00E8C8; 
-            --text-light: #e0e0e0; 
-            --error: #ff3333; 
-            --warn: #ffcc00; 
-            --bg-mid: #161616; 
-            --tile-bg: #1f1f1f;
-            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
-        }
-
-        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; transition: all 0.2s ease; }
-        body { background: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; line-height: 1.6; }
-        
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-dark); }
-        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
-
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-
-        /* Login Container */
-        #loginContainer { 
-            max-width: 400px; margin: 100px auto; background: var(--bg-mid); 
-            padding: 40px; border-radius: 20px; border: 1px solid var(--primary);
-            box-shadow: var(--shadow);
-        }
-        
-        input, select { 
-            width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; 
-            border: 1px solid #333; background: #252525; color: #fff; outline: none;
-        }
-        input:focus { border-color: var(--primary); box-shadow: 0 0 10px rgba(0,255,0,0.2); }
-
-        button { 
-            cursor: pointer; border: none; border-radius: 8px; font-weight: bold; 
-            padding: 12px 20px; display: inline-flex; align-items: center; justify-content: center;
-        }
-
-        .btn-primary { background: var(--primary); color: #000; width: 100%; }
-        .btn-primary:hover { background: #00cc00; transform: scale(1.02); }
-
-        /* Main Content */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 20px; }
-        
-        .admin-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; }
-        .admin-tile { 
-            background: var(--tile-bg); padding: 20px; border-radius: 15px; 
-            text-align: center; border: 2px solid #333; position: relative; overflow: hidden;
-        }
-        .admin-tile:hover { border-color: var(--secondary); transform: translateY(-5px); cursor: pointer; }
-        .admin-tile h3 { margin: 10px 0; color: var(--secondary); font-size: 24px; }
-        
-        /* Search Bar */
-        .search-box { position: relative; max-width: 600px; margin: 0 auto 30px; }
-        .search-box input { padding-right: 45px; font-size: 16px; border-radius: 25px; border: 2px solid #444; }
-
-        /* Table Style */
-        .table-responsive { background: var(--bg-mid); border-radius: 15px; overflow: hidden; box-shadow: var(--shadow); }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #252525; color: var(--primary); padding: 15px; font-weight: 600; font-size: 14px; }
-        td { padding: 12px 15px; border-bottom: 1px solid #333; text-align: center; font-size: 13px; }
-        tr:hover { background: rgba(255,255,255,0.03); }
-
-        /* Badges */
-        .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; }
-        .status-active { background: rgba(0, 255, 0, 0.1); color: var(--primary); }
-        .status-blocked { background: rgba(255, 165, 0, 0.1); color: var(--warn); }
-        .status-expired { background: rgba(255, 68, 68, 0.1); color: var(--error); }
-
-        /* Modals */
-        .modal-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.9); display: none; justify-content: center; 
-            align-items: center; z-index: 1000; backdrop-filter: blur(5px);
-        }
-        .modal-content { background: var(--bg-mid); padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; border: 1px solid var(--secondary); }
-
-        /* Toasts */
-        #toast-container { position: fixed; bottom: 20px; left: 20px; z-index: 9999; }
-        .toast { background: var(--bg-mid); border-right: 5px solid var(--primary); color: #fff; padding: 15px 25px; border-radius: 8px; margin-top: 10px; box-shadow: var(--shadow); animation: slideIn 0.3s ease-out forwards; }
-        @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        .actions { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-        .btn-small { padding: 5px 10px; font-size: 11px; border-radius: 5px; }
-        .btn-edit { background: #0099cc; color: white; }
-        .btn-delete { background: var(--error); color: white; }
-        .btn-warn { background: var(--warn); color: black; }
-        .btn-eject { background: #555; color: white; }
-
-        @media (max-width: 768px) {
-            .admin-tiles { grid-template-columns: 1fr 1fr; }
-            th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { display: none; }
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div id="loginContainer">
-        <h2 style="text-align:center; color:var(--primary); margin-bottom:30px;">GIZA LOGIN 🛡️</h2>
-        <form id="loginForm">
-            <input type="email" id="loginEmail" placeholder="البريد الإلكتروني" required>
-            <input type="password" id="loginPassword" placeholder="كلمة المرور" required>
-            <button type="submit" class="btn-primary" style="margin-top:20px;">دخول الأن</button>
-        </form>
-    </div>
-
-    <div id="mainContent" style="display:none;">
-        <div class="header">
-            <h1 style="color:var(--primary); margin:0;">GIZA CONTROL 👑</h1>
-            <button onclick="logout()" class="btn-delete btn-small">تسجيل الخروج</button>
-        </div>
-
-        <div class="admin-tiles">
-            <div class="admin-tile" onclick="setActivePanel('sara')">
-                <p>لوحة</p><h3>Sara</h3>
-            </div>
-            <div class="admin-tile" onclick="setActivePanel('ahmed')">
-                <p>لوحة</p><h3>Ahmed</h3>
-            </div>
-            <div class="admin-tile" onclick="setActivePanel('giza')">
-                <p>لوحة</p><h3>GIZA</h3>
-            </div>
-            <div class="admin-tile" style="border-color:var(--error);" onclick="showBlockedDevices()">
-                <p>المحظورين</p><h3>🚫 الأجهزة</h3>
-            </div>
-            <div class="admin-tile" style="border-color:var(--primary);" onclick="setActivePanel('TOTAL')">
-                <p>الإحصائيات</p><h3>📊 الكل</h3>
-            </div>
-        </div>
-
-        <div id="controlActions" style="text-align:center; margin-bottom:30px;">
-            <button class="btn-primary" style="width:auto; padding: 15px 40px;" onclick="toggleModal('addCodeModal', true)">+ إنشاء كود جديد</button>
-        </div>
-
-        <div class="search-box">
-            <input type="text" id="globalSearch" placeholder="🔍 ابحث بالاسم، الكود، أو الشعبة..." oninput="handleSearch(this.value)">
-        </div>
-
-        <div id="tableContainer" class="table-responsive">
-            <table id="studentsTable">
-                <thead>
-                    <tr>
-                        <th>الكود</th>
-                        <th>الطالب</th>
-                        <th>الشعبة</th>
-                        <th>المدفوع</th>
-                        <th>الصلاحية</th>
-                        <th>الحالة</th>
-                        <th>الإجراءات</th>
-                    </tr>
-                </thead>
-                <tbody id="studentsBody">
-                    <tr><td colspan="7" style="padding:40px;">يرجى اختيار لوحة لعرض البيانات...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div id="addCodeModal" class="modal-overlay">
-    <div class="modal-content">
-        <h3 style="color:var(--secondary);">إضافة طالب جديد</h3>
-        <p>الكود المولد: <strong id="generatedCode" style="color:var(--primary); font-family:monospace; font-size:20px;"></strong></p>
-        <form id="addCodeForm">
-            <input type="text" id="stName" placeholder="اسم الطالب بالكامل" required>
-            <select id="stSection" required>
-                <option value="">اختر الشعبة</option>
-                <option value="علمي علوم">علمي علوم</option>
-                <option value="علمي رياضة">علمي رياضة</option>
-                <option value="أدبي">أدبي</option>
-                <option value="أزهر">أزهر</option>
-            </select>
-            <input type="number" id="stPrice" placeholder="المبلغ المدفوع">
-            <select id="stDuration">
-                <option value="trial">تجربة (1 ساعة)</option>
-                <option value="30">شهر (30 يوم)</option>
-                <option value="custom">مخصص بالأيام</option>
-            </select>
-            <input type="number" id="stCustomDays" placeholder="عدد الأيام في حال المخصص" style="display:none;">
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button type="submit" class="btn-primary">تفعيل الكود</button>
-                <button type="button" onclick="toggleModal('addCodeModal', false)" style="background:#444; color:white; width:100%;">إلغاء</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div id="editModal" class="modal-overlay">
-    <div class="modal-content">
-        <h3 style="color:var(--secondary);">تعديل بيانات الطالب</h3>
-        <form id="editForm">
-            <input type="hidden" id="editUid">
-            <label>الاسم:</label>
-            <input type="text" id="editName" required>
-            <label>الشعبة:</label>
-            <select id="editSection">
-                <option value="علمي علوم">علمي علوم</option>
-                <option value="علمي رياضة">علمي رياضة</option>
-                <option value="أدبي">أدبي</option>
-                <option value="أزهر">أزهر</option>
-            </select>
-            <label>إجمالي المدفوع (ج.م):</label>
-            <input type="number" id="editPrice">
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button type="submit" class="btn-primary">حفظ التغييرات</button>
-                <button type="button" onclick="toggleModal('editModal', false)" style="background:#444; color:white; width:100%;">إغلاق</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div id="toast-container"></div>
-
-<script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
-    import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
+    <title>GIZA - لوحة تحكم المالك 👑 | Full Mark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
+        import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js'; 
 
         const firebaseConfig = {
             apiKey: "AIzaSyBK6FZF3LW83qaUHBKYTfiVd2Ozrd1Rf2g",
@@ -239,216 +20,376 @@
             appId: "1:1026664406457:web:87d71f7e41bef36ba0aa68",
             measurementId: "G-J5R2EFM2D0"
         };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    const GIZA_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1";
-    let allData = {};
-    let activePanel = null;
-    let searchFilter = "";
-
-    // -- Helper Functions --
-    window.showToast = (msg, type = "success") => {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        if(type === 'error') toast.style.borderRightColor = 'var(--error)';
-        toast.textContent = msg;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-    };
-
-    window.toggleModal = (id, show) => {
-        const modal = document.getElementById(id);
-        modal.style.display = show ? 'flex' : 'none';
-        if(id === 'addCodeModal' && show) {
-            document.getElementById('generatedCode').textContent = Math.floor(100000 + Math.random() * 900000);
-        }
-    };
-
-    // -- Auth --
-    document.getElementById('loginForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('loginEmail').value;
-        const pass = document.getElementById('loginPassword').value;
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-        } catch (err) {
-            showToast("خطأ في بيانات الدخول!", "error");
-        }
-    };
-
-    window.logout = () => signOut(auth);
-
-    onAuthStateChanged(auth, (user) => {
-        if (user && user.uid === GIZA_UID) {
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('mainContent').style.display = 'block';
-            initDataListeners();
-        } else {
-            document.getElementById('loginContainer').style.display = 'block';
-            document.getElementById('mainContent').style.display = 'none';
-        }
-    });
-
-    // -- Data Management --
-    function initDataListeners() {
-        onValue(ref(db, 'approvedStudents'), (snapshot) => {
-            allData = snapshot.val() || {};
-            renderTable();
-        });
-    }
-
-    window.setActivePanel = (panel) => {
-        activePanel = panel;
-        renderTable();
-        showToast(`تم فتح لوحة ${panel.toUpperCase()}`);
-    };
-
-    window.handleSearch = (val) => {
-        searchFilter = val.toLowerCase();
-        renderTable();
-    };
-
-    function renderTable() {
-        const tbody = document.getElementById('studentsBody');
-        tbody.innerHTML = "";
         
-        let list = Object.values(allData);
+        const CURRENT_ADMIN_ROLE = 'giza'; 
+        const GIZA_ALLOWED_UID = "MeGkUlBKCuas45rXQSX0DheNBBy1"; 
         
-        // Filter by Panel
-        if(activePanel && activePanel !== 'TOTAL') {
-            list = list.filter(item => (item.addedByAdmin || 'giza').toLowerCase() === activePanel);
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        
+        const codesRef = ref(db, 'approvedStudents');
+        const blockedDevicesRef = ref(db, 'blockedDevices');
+
+        let allCodesData = {};
+        let allBlockedDevices = {};
+        let activeTile = null; 
+        let currentUserUid = null; 
+        let currentCategorizedData = { active: [], manuallyBlocked: [], expired: [] }; 
+        let currentSearchQuery = ""; 
+
+        window.showToast = (message, type = "success") => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; }, 10);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 5000);
+        };
+        
+        async function checkAdminStatus(uid) {
+            if (uid === GIZA_ALLOWED_UID) return true;
+            window.showToast("❌ غير مُصرح لك بالدخول.", "error");
+            signOut(auth); 
+            return false;
+        }
+        
+        async function checkAuthAndProceed(action, ...args) {
+            if (!currentUserUid) { window.showToast("❌ سجل دخول الأول يا بطل.", "error"); return; }
+            if (await checkAdminStatus(currentUserUid)) { action(...args); }
         }
 
-        // Filter by Search
-        if(searchFilter) {
-            list = list.filter(item => 
-                item.name?.toLowerCase().includes(searchFilter) || 
-                item.uid?.toString().includes(searchFilter) ||
-                item.section?.toLowerCase().includes(searchFilter)
-            );
-        }
-
-        if(list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="padding:40px;">لا يوجد بيانات حالياً...</td></tr>`;
-            return;
-        }
-
-        list.forEach(student => {
-            const isExpired = student.expiry < Date.now();
-            const statusClass = isExpired ? 'status-expired' : (student.isBlocked ? 'status-blocked' : 'status-active');
-            const statusText = isExpired ? 'منتهي' : (student.isBlocked ? 'معطل' : 'نشط');
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="font-family:monospace; font-weight:bold;">${student.uid}</td>
-                <td>${student.name}</td>
-                <td>${student.section || '-'}</td>
-                <td>${student.pricePaid || 0} ج.م</td>
-                <td>${formatTime(student.expiry)}</td>
-                <td><span class="badge ${statusClass}">${statusText}</span></td>
-                <td class="actions">
-                    <button class="btn-small btn-edit" onclick="openEdit('${student.uid}')">تعديل</button>
-                    <button class="btn-small btn-warn" onclick="renewPrompt('${student.uid}', '${student.name}')">تجديد</button>
-                    <button class="btn-small btn-eject" onclick="ejectDevice('${student.uid}')">طرد</button>
-                    <button class="btn-small ${student.isBlocked ? 'btn-primary' : 'btn-warn'}" onclick="toggleBlock('${student.uid}', ${student.isBlocked})">
-                        ${student.isBlocked ? 'تفعيل' : 'تعطيل'}
-                    </button>
-                    <button class="btn-small btn-delete" onclick="deleteStudent('${student.uid}')">حذف</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function formatTime(ts) {
-        if(!ts) return "-";
-        const diff = ts - Date.now();
-        if(diff < 0) return "منتهي";
-        const days = Math.floor(diff / 86400000);
-        const hours = Math.floor((diff % 86400000) / 3600000);
-        return `${days} يوم و ${hours} ساعة`;
-    }
-
-    // -- Actions --
-    window.openEdit = (uid) => {
-        const s = allData[uid];
-        document.getElementById('editUid').value = uid;
-        document.getElementById('editName').value = s.name;
-        document.getElementById('editSection').value = s.section || "";
-        document.getElementById('editPrice').value = s.pricePaid || 0;
-        toggleModal('editModal', true);
-    };
-
-    document.getElementById('editForm').onsubmit = (e) => {
-        e.preventDefault();
-        const uid = document.getElementById('editUid').value;
-        update(ref(db, `approvedStudents/${uid}`), {
-            name: document.getElementById('editName').value,
-            section: document.getElementById('editSection').value,
-            pricePaid: parseFloat(document.getElementById('editPrice').value)
-        }).then(() => {
-            showToast("تم تحديث البيانات");
-            toggleModal('editModal', false);
-        });
-    };
-
-    document.getElementById('addCodeForm').onsubmit = (e) => {
-        e.preventDefault();
-        const code = document.getElementById('generatedCode').textContent;
-        const duration = document.getElementById('stDuration').value;
-        let expiry = Date.now();
-
-        if(duration === 'trial') expiry += 3600000;
-        else if(duration === '30') expiry += 30 * 86400000;
-        else expiry += (parseInt(document.getElementById('stCustomDays').value) || 0) * 86400000;
-
-        const newData = {
-            uid: code,
-            name: document.getElementById('stName').value,
-            section: document.getElementById('stSection').value,
-            pricePaid: parseFloat(document.getElementById('stPrice').value) || 0,
-            expiry: expiry,
-            addedByAdmin: activePanel === 'TOTAL' || !activePanel ? 'giza' : activePanel,
-            approvedAt: Date.now(),
-            isBlocked: false,
-            deviceId: ""
+        window.handleLogin = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                if (await checkAdminStatus(userCredential.user.uid)) { 
+                    currentUserUid = userCredential.user.uid;
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('mainContent').style.display = 'block';
+                    loadAllCodes(); 
+                    window.showToast("🔓 دخلت بنجاح يا زعيم", "success");
+                } 
+            } catch (error) { window.showToast(`❌ فشل: ${error.message}`, "error"); }
         };
 
-        set(ref(db, `approvedStudents/${code}`), newData).then(() => {
-            showToast("تم إضافة الطالب بنجاح");
-            toggleModal('addCodeModal', false);
-            document.getElementById('addCodeForm').reset();
+        window.logout = async () => { await signOut(auth); window.showToast("👋 مع السلامة يا بطل", "warn"); };
+
+        function generateUniqueCode() {
+            let code;
+            do { code = String(Math.floor(100000 + Math.random() * 900000)); } while (allCodesData[code]);
+            return code;
+        }
+
+        window.handleSearch = (query) => {
+            currentSearchQuery = query.toLowerCase().trim();
+            // إعادة الرندر للجدول المفتوح حالياً بناءً على البحث
+            if (activeTile && !activeTile.startsWith('BLOCKED')) {
+                const titleNode = document.querySelector('#codeDetailsContainer h2');
+                if (titleNode) {
+                    const title = titleNode.innerText;
+                    let categoryKey = 'active';
+                    if (title.includes('المُعطلة')) categoryKey = 'manuallyBlocked';
+                    if (title.includes('مُنتهية')) categoryKey = 'expired';
+                    renderFilteredCodesTable(activeTile, categoryKey, title.split(' لـ ')[0]);
+                }
+            }
+        };
+
+        window.toggleBlock = (uid, name, isBlocked) => checkAuthAndProceed(() => {
+            update(ref(db, 'approvedStudents/' + uid), { isBlocked: !isBlocked })
+            .then(() => window.showToast(`✅ تم ${!isBlocked ? 'تعطيل' : 'تفعيل'} ${name}`));
         });
-    };
 
-    window.deleteStudent = (uid) => {
-        if(confirm("هل أنت متأكد من حذف هذا الطالب نهائياً؟")) {
-            remove(ref(db, `approvedStudents/${uid}`)).then(() => showToast("تم الحذف", "error"));
+        window.ejectDevice = (uid, name) => checkAuthAndProceed(() => {
+            if (!confirm(`طرد كود ${name}؟`)) return;
+            update(ref(db, 'approvedStudents/' + uid), { deviceId: "" })
+            .then(() => window.showToast(`✅ تم الطرد`));
+        });
+
+        window.deleteCode = (uid, name) => checkAuthAndProceed(() => {
+            if (!confirm(`حذف نهائي لـ ${name}؟`)) return;
+            remove(ref(db, 'approvedStudents/' + uid));
+        });
+
+        window.openEditModal = (uid) => {
+            const data = allCodesData[uid];
+            if (!data) return;
+            document.getElementById('editUid').value = uid;
+            document.getElementById('editName').value = data.name;
+            document.getElementById('editSection').value = data.section || "";
+            document.getElementById('editPrice').value = data.pricePaid || 0;
+            document.getElementById('editModalOverlay').style.display = 'flex';
+        };
+
+        window.closeEditModal = () => { document.getElementById('editModalOverlay').style.display = 'none'; };
+
+        window.saveEditedDetails = (e) => {
+            e.preventDefault();
+            const uid = document.getElementById('editUid').value;
+            update(ref(db, 'approvedStudents/' + uid), {
+                name: document.getElementById('editName').value,
+                section: document.getElementById('editSection').value,
+                pricePaid: parseFloat(document.getElementById('editPrice').value) || 0
+            }).then(() => {
+                window.showToast("✅ تم الحفظ");
+                closeEditModal();
+            });
+        };
+
+        window.addNewCode = (e) => checkAuthAndProceed(() => {
+            e.preventDefault();
+            const form = e.target;
+            const newCode = document.getElementById('newCodeDisplay').textContent;
+            let expiryTime = Date.now();
+            if (form.durationType.value === 'trial') expiryTime += 3600000;
+            else if (form.durationType.value === '30days') expiryTime += 2592000000;
+            else expiryTime += (parseInt(form.customDays.value) || 0) * 86400000;
+
+            set(ref(db, 'approvedStudents/' + newCode), {
+                uid: newCode, name: form.studentName.value, section: form.studentSection.value,
+                pricePaid: parseFloat(form.price.value) || 0, addedByAdmin: CURRENT_ADMIN_ROLE,
+                approvedAt: Date.now(), expiry: expiryTime, deviceId: "", isBlocked: false
+            }).then(() => {
+                window.showToast("✅ كود جديد ضرب!");
+                toggleAddCodeForm(false);
+                form.reset();
+            });
+        });
+
+        window.renewCode = (uid, name) => checkAuthAndProceed(() => {
+            const days = parseInt(prompt(`أيام التجديد لـ ${name}?`));
+            if (isNaN(days)) return;
+            const current = allCodesData[uid];
+            let newExpiry = (current.expiry < Date.now()) ? Date.now() + (days * 86400000) : current.expiry + (days * 86400000);
+            update(ref(db, 'approvedStudents/' + uid), { expiry: newExpiry, isBlocked: false });
+        });
+
+        window.addBlockedDevicePrompt = (id) => checkAuthAndProceed(() => {
+            const notes = prompt("ملاحظات الحظر؟") || "حظر يدوي من اللوحة";
+            set(ref(db, 'blockedDevices/' + id.trim()), {
+                deviceId: id.trim(), blockedBy: CURRENT_ADMIN_ROLE, timestamp: Date.now(), notes: notes
+            }).then(() => window.showToast("🚫 الجهاز اتحظر"));
+        });
+
+        function loadAllCodes() {
+            onValue(codesRef, (snap) => {
+                allCodesData = snap.val() || {};
+                if (activeTile && !activeTile.startsWith('BLOCKED')) window.toggleAdminDetails(activeTile, true);
+            });
+            onValue(blockedDevicesRef, (snap) => {
+                allBlockedDevices = snap.val() || {};
+                if (activeTile === 'BLOCKED_DEVICES') window.toggleBlockedDevicesDetails('TOTAL', true);
+            });
         }
-    };
 
-    window.toggleBlock = (uid, currentStatus) => {
-        update(ref(db, `approvedStudents/${uid}`), { isBlocked: !currentStatus });
-    };
+        onAuthStateChanged(auth, (user) => {
+            if (user && user.uid === GIZA_ALLOWED_UID) {
+                currentUserUid = user.uid;
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                loadAllCodes();
+            } else {
+                document.getElementById('loginContainer').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+            }
+        });
 
-    window.ejectDevice = (uid) => {
-        update(ref(db, `approvedStudents/${uid}`), { deviceId: "" }).then(() => showToast("تم طرد الجهاز"));
-    };
-
-    window.renewPrompt = (uid, name) => {
-        const days = prompt(`كم عدد أيام التجديد للطالب ${name}؟`, "30");
-        if(days) {
-            const currentExpiry = allData[uid].expiry;
-            const startPoint = currentExpiry > Date.now() ? currentExpiry : Date.now();
-            const newExpiry = startPoint + (parseInt(days) * 86400000);
-            update(ref(db, `approvedStudents/${uid}`), { expiry: newExpiry, isBlocked: false });
-            showToast("تم التجديد بنجاح");
+        function formatExpiry(timestamp) {
+            const diff = timestamp - Date.now();
+            if (diff < 0) return '<span style="color:red; font-weight:bold;">منتهي</span>';
+            return `${Math.floor(diff / 86400000)}ي ${Math.floor((diff % 86400000) / 3600000)}س`;
         }
-    };
 
-    // Toggle custom days input
-    document.get
+        window.renderFilteredCodesTable = (adminRole, categoryKey, categoryName) => {
+            const codes = (adminRole === 'TOTAL' ? Object.values(allCodesData) : Object.values(allCodesData).filter(c => (c.addedByAdmin || 'giza').toLowerCase() === adminRole.toLowerCase()));
+            const now = Date.now();
+            window.currentCategorizedData = codes.reduce((acc, c) => {
+                if (c.expiry < now) acc.expired.push(c);
+                else if (c.isBlocked) acc.manuallyBlocked.push(c);
+                else acc.active.push(c);
+                return acc;
+            }, { active: [], manuallyBlocked: [], expired: [] });
+
+            let filtered = window.currentCategorizedData[categoryKey] || [];
+            if (currentSearchQuery) {
+                filtered = filtered.filter(c => c.uid.toLowerCase().includes(currentSearchQuery) || (c.name && c.name.toLowerCase().includes(currentSearchQuery)));
+            }
+
+            const container = document.getElementById('codeDetailsContainer');
+            container.innerHTML = `
+                <h2 style="color:var(--primary); text-align:center;">${categoryName} لـ ${adminRole} (${filtered.length})</h2>
+                <div class="search-bar-container"><input type="text" placeholder="🔍 ابحث بالاسم أو الكود..." oninput="handleSearch(this.value)" value="${currentSearchQuery}"></div>
+                <button class="add-code-btn" style="width: auto; margin: 10px auto; background: #555;" onclick="toggleAdminDetails('${adminRole}', true)">← رجوع</button>
+                <div class="table-responsive">
+                    <table>
+                        <thead><tr><th>الكود</th><th>الاسم</th><th>الشعبة</th><th>المبلغ</th><th>الصلاحية</th><th>الحالة</th><th>الجهاز</th><th>الإجراءات</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>`;
+            
+            const tbody = container.querySelector('tbody');
+            filtered.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="code-uid">${d.uid}</td><td>${d.name}</td><td>${d.section || 'N/A'}</td><td>${d.pricePaid} ج.م</td>
+                    <td>${formatExpiry(d.expiry)}</td><td class="${d.expiry < now ? 'status-expired' : (d.isBlocked ? 'status-blocked' : 'status-active')}">${d.expiry < now ? 'منتهي' : (d.isBlocked ? 'معطل' : 'نشط')}</td>
+                    <td class="device-id">${d.deviceId || 'فارغ'}</td>
+                    <td class="actions">
+                        <button onclick="openEditModal('${d.uid}')" class="unblock-btn" style="background: #0099cc; color: white;">تعديل</button>
+                        ${d.deviceId ? `<button onclick="addBlockedDevicePrompt('${d.deviceId}')" class="delete-btn">🚫 حظر</button>` : ''}
+                        <button onclick="ejectDevice('${d.uid}', '${d.name}')" class="eject-btn">طرد</button>
+                        <button onclick="toggleBlock('${d.uid}', '${d.name}', ${d.isBlocked})" class="${d.isBlocked ? 'unblock-btn' : 'block-btn'}">${d.isBlocked ? 'تفعيل' : 'تعطيل'}</button>
+                        ${categoryKey === 'expired' ? `<button onclick="renewCode('${d.uid}', '${d.name}')" class="unblock-btn">تجديد</button>` : ''}
+                        <button onclick="deleteCode('${d.uid}', '${d.name}')" class="delete-btn">حذف</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        };
+
+        window.toggleAdminDetails = (role, force = false) => {
+            activeTile = role;
+            const container = document.getElementById('codeDetailsContainer');
+            const codes = (role === 'TOTAL' ? Object.values(allCodesData) : Object.values(allCodesData).filter(c => (c.addedByAdmin || 'giza').toLowerCase() === role.toLowerCase()));
+            const now = Date.now();
+            const cat = codes.reduce((acc, c) => {
+                if (c.expiry < now) acc.expired.push(c);
+                else if (c.isBlocked) acc.manuallyBlocked.push(c);
+                else acc.active.push(c);
+                return acc;
+            }, { active: [], manuallyBlocked: [], expired: [] });
+            window.currentCategorizedData = cat;
+            container.innerHTML = `
+                <h2 style="text-align:center;">إدارة: ${role}</h2>
+                <div class="admin-tiles sub-tiles-container">
+                    <div class="admin-tile" onclick="renderFilteredCodesTable('${role}', 'active', 'الأكواد المُفعلة')"><h3>${cat.active.length}</h3><p>نشط</p></div>
+                    <div class="admin-tile" style="border-color:var(--warn);" onclick="renderFilteredCodesTable('${role}', 'manuallyBlocked', 'المُعطلة يدوياً')"><h3>${cat.manuallyBlocked.length}</h3><p>معطل</p></div>
+                    <div class="admin-tile" style="border-color:var(--error);" onclick="renderFilteredCodesTable('${role}', 'expired', 'الأكواد المُنتهية')"><h3>${cat.expired.length}</h3><p>منتهي</p></div>
+                </div>`;
+        };
+
+        window.toggleBlockedDevicesDetails = () => {
+            activeTile = 'BLOCKED_DEVICES';
+            const container = document.getElementById('codeDetailsContainer');
+            const devices = Object.values(allBlockedDevices);
+            container.innerHTML = `
+                <h2 style="color:var(--error); text-align:center;">الأجهزة المحظورة (${devices.length})</h2>
+                <div class="table-responsive">
+                    <table><thead><tr><th>Device ID</th><th>بواسطة</th><th>ملاحظات</th><th>إجراء</th></tr></thead>
+                    <tbody>${devices.map(d => `<tr><td>${d.deviceId}</td><td>${d.blockedBy}</td><td>${d.notes}</td><td><button onclick="unblockDevice('${d.deviceId}')" class="delete-btn">فك الحظر</button></td></tr>`).join('')}</tbody>
+                    </table></div>`;
+        };
+
+        window.unblockDevice = (id) => remove(ref(db, 'blockedDevices/' + id));
+        window.toggleAddCodeForm = (s) => { document.getElementById('addCodeFormContainer').style.display = s ? 'block' : 'none'; if(s) document.getElementById('newCodeDisplay').textContent = generateUniqueCode(); };
+        window.copyDeviceID = (id) => { navigator.clipboard.writeText(id).then(() => window.showToast("✅ تم النسخ")); };
+    </script>
+    <style>
+        :root { --bg-dark: #0a0a0a; --primary: #00FF00; --secondary: #00E8C8; --text-light: #F0F0F0; --error: #FF4444; --warn: #FFA500; --bg-mid: #161616; --tile-bg: #1f1f1f; }
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-light); margin: 0; padding: 0; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 20px; }
+        
+        /* Modal Style */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 10000; }
+        .modal-content { background: var(--bg-mid); padding: 30px; border-radius: 15px; border: 1px solid var(--secondary); width: 90%; max-width: 400px; }
+        .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; background: #222; border: 1px solid #444; color: #fff; }
+
+        .search-bar-container { max-width: 500px; margin: 15px auto; }
+        .search-bar-container input { width: 100%; padding: 12px; border-radius: 25px; border: 1px solid var(--secondary); background: #111; color: #fff; text-align: center; }
+
+        .admin-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-bottom: 40px; }
+        .admin-tile { background: var(--tile-bg); padding: 25px; border-radius: 15px; width: 220px; text-align: center; cursor: pointer; border: 2px solid var(--secondary); transition: 0.3s; }
+        .admin-tile:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 0 15px rgba(0,255,0,0.3); }
+        .table-responsive { overflow-x: auto; margin-top: 15px; background: var(--bg-mid); border-radius: 10px; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; border-bottom: 1px solid #333; text-align: center; font-size: 13px; }
+        th { color: var(--primary); }
+        .actions button { padding: 5px 8px; border-radius: 4px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .delete-btn { background: var(--error); color: #fff; }
+        .eject-btn { background: #0099cc; color: #fff; }
+        .unblock-btn { background: var(--primary); color: #000; }
+        .block-btn { background: var(--warn); color: #000; }
+        #toast-container { position: fixed; bottom: 20px; left: 20px; z-index: 10001; }
+        .toast { padding: 12px 20px; border-radius: 8px; margin-top: 10px; opacity: 0; transition: 0.4s; font-weight: bold; }
+        .toast-success { background: var(--primary); color: #000; }
+        .toast-error { background: var(--error); color: #fff; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div id="loginContainer">
+        <h2 style="text-align:center;">GIZA LOGIN 🛡️</h2>
+        <form onsubmit="handleLogin(event)">
+            <input type="email" id="loginEmail" placeholder="البريد" required style="width:100%; padding:10px; margin-bottom:10px;">
+            <input type="password" id="loginPassword" placeholder="الباسورد" required style="width:100%; padding:10px; margin-bottom:10px;">
+            <button type="submit" style="width:100%; padding:12px; background:var(--primary); font-weight:bold; cursor:pointer; border:none; border-radius:5px;">دخول</button>
+        </form>
+    </div>
+
+    <div id="mainContent" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1 style="color:var(--primary);">GIZA - لوحة المالك 👑</h1>
+            <button onclick="logout()" style="background:var(--error); color:#fff; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">خروج</button>
+        </div>
+
+        <button class="add-code-btn" onclick="toggleAddCodeForm(true)" style="background:var(--secondary); padding:12px 25px; border:none; border-radius:8px; display:block; margin: 20px auto; cursor:pointer; font-weight:bold;">+ إضافة كود جديد</button>
+
+        <div id="addCodeFormContainer" style="display:none; background:#000; padding:20px; border:2px solid var(--secondary); border-radius:10px; max-width:500px; margin:20px auto;">
+            <p>الكود: <span id="newCodeDisplay" style="color:var(--primary); font-weight:bold;"></span></p>
+            <form onsubmit="addNewCode(event)">
+                <input type="text" name="studentName" placeholder="اسم الطالب" required>
+                <select name="studentSection" required>
+                    <option value="">اختر الشعبة</option>
+                    <option value="علمي علوم">علمي علوم</option><option value="علمي رياضة">علمي رياضة</option><option value="أدبي">أدبي</option><option value="أزهر">أزهر</option>
+                </select>
+                <input type="number" name="price" placeholder="المبلغ">
+                <select name="durationType">
+                    <option value="trial">ساعة</option><option value="30days">30 يوم</option><option value="custom">مخصص</option>
+                </select>
+                <input type="number" name="customDays" placeholder="عدد الأيام">
+                <button type="submit" style="background:var(--primary); width:100%; padding:10px; font-weight:bold; margin-top:10px; border:none; border-radius:5px;">حفظ</button>
+                <button type="button" onclick="toggleAddCodeForm(false)" style="background:#555; width:100%; padding:10px; color:#fff; margin-top:5px; border:none; border-radius:5px;">إلغاء</button>
+            </form>
+        </div>
+
+        <div class="admin-tiles">
+            <div class="admin-tile" onclick="toggleAdminDetails('sara')"><h3>Sara</h3></div>
+            <div class="admin-tile" onclick="toggleAdminDetails('ahmed')"><h3>Ahmed</h3></div>
+            <div class="admin-tile" onclick="toggleAdminDetails('giza')"><h3>GIZA</h3></div>
+            <div class="admin-tile" style="border-color:var(--error);" onclick="toggleBlockedDevicesDetails()"><h3>🚫 الحظر</h3></div>
+            <div class="admin-tile" onclick="toggleAdminDetails('TOTAL')"><h3>📊 الكل</h3></div>
+        </div>
+
+        <div id="codeDetailsContainer">
+            <p style="text-align:center; color:var(--secondary);">اختر لوحة لعرض البيانات.</p>
+        </div>
+    </div>
+</div>
+
+<div id="editModalOverlay" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="text-align:center; color:var(--secondary);">تعديل البيانات</h3>
+        <form onsubmit="saveEditedDetails(event)">
+            <input type="hidden" id="editUid">
+            <input type="text" id="editName" placeholder="الاسم" required>
+            <select id="editSection">
+                <option value="علمي علوم">علمي علوم</option><option value="علمي رياضة">علمي رياضة</option><option value="أدبي">أدبي</option><option value="أزهر">أزهر</option>
+            </select>
+            <input type="number" id="editPrice" placeholder="المبلغ">
+            <button type="submit" style="width:100%; padding:10px; background:var(--primary); font-weight:bold; border:none; border-radius:5px;">حفظ</button>
+            <button type="button" onclick="closeEditModal()" style="width:100%; padding:10px; background:#555; color:#fff; margin-top:10px; border:none; border-radius:5px;">إغلاق</button>
+        </form>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+</body>
+</html>
