@@ -251,18 +251,27 @@
         return code;
     }
 
-    window.handleSearch = (query) => {
-        currentSearchQuery = query.toLowerCase().trim();
-        if (activeTile && !activeTile.startsWith('BLOCKED') && !activeTile.startsWith('COLLECTION')) {
-            const titleNode = document.querySelector('#codeDetailsContainer h2');
-            if (titleNode) {
-                const title = titleNode.innerText;
-                let categoryKey = 'active';
-                if (title.includes('المُعطلة')) categoryKey = 'manuallyBlocked';
-                if (title.includes('مُنتهية')) categoryKey = 'expired';
-                renderFilteredCodesTable(activeTile, categoryKey, title.split(' لـ ')[0], false);
-            }
-        }
+    window.handleAddExpense = (e) => {
+        e.preventDefault(); // دي اللي هتحل المشكلة وتوقف تحديث الصفحة
+        
+        const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+        const reason = document.getElementById('expenseReason').value;
+
+        if(amount <= 0) return window.showToast("❌ يرجى إدخال مبلغ صحيح", "error");
+        if(!reason) return window.showToast("❌ يرجى كتابة سبب الصرف", "error");
+
+        checkAuthAndProceed(() => {
+            push(expensesRef, {
+                amount: amount,
+                reason: reason,
+                addedBy: CURRENT_ADMIN_ROLE,
+                timestamp: Date.now()
+            }).then(() => {
+                window.showToast("💸 تم تسجيل المصروف", "warn");
+                toggleExpenseForm(false);
+                document.getElementById('expenseForm').reset();
+            });
+        });
     };
 
     window.toggleBlock = (uid, name, isBlocked) => checkAuthAndProceed(() => {
