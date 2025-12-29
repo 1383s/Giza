@@ -424,14 +424,15 @@
             else sections['غير محدد']++;
         });
 
-        // 2. تجهيز بيانات الإيرادات حسب الأدمن (تحديث جديد لمحمود)
-        const admins = { 'Sara': 0, 'Giza': 0, 'Mahmoud': 0, 'Others': 0 };
+        // 2. تجهيز بيانات الإيرادات حسب الأدمن (تحديث جديد لمحمود وأحمد)
+        const admins = { 'Sara': 0, 'Giza': 0, 'Mahmoud': 0, 'Ahmed': 0, 'Others': 0 }; // <--- إضافة أحمد هنا
         codes.forEach(c => {
             const role = (c.addedByAdmin || 'unknown').toLowerCase();
             const price = parseFloat(c.pricePaid) || 0;
             if (role.includes('sara')) admins['Sara'] += price;
             else if (role.includes('giza')) admins['Giza'] += price;
-            else if (role.includes('mahmoud')) admins['Mahmoud'] += price; // <--- إضافة محمود هنا
+            else if (role.includes('mahmoud')) admins['Mahmoud'] += price;
+            else if (role.includes('ahmed')) admins['Ahmed'] += price; // <--- حساب أحمد
             else admins['Others'] += price;
         });
 
@@ -469,7 +470,7 @@
                 datasets: [{
                     label: 'الإيرادات (ج.م)',
                     data: Object.values(admins),
-                    backgroundColor: ['#ec4899', '#8b5cf6', '#10b981', '#64748b'], // اللون الأخضر لمحمود
+                    backgroundColor: ['#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#64748b'], // اللون البرتقالي لأحمد
                     borderRadius: 5
                 }]
             },
@@ -641,6 +642,9 @@
                 <div style="background:#263346; padding:15px; border-radius:10px; text-align:center; border:1px solid rgba(255,255,255,0.05);">
                     <span style="color:#10b981; font-weight:bold;">محمود:</span> ${calcIncome('mahmoud').toLocaleString()} ج.م
                 </div>
+                <div style="background:#263346; padding:15px; border-radius:10px; text-align:center; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="color:#f59e0b; font-weight:bold;">أحمد:</span> ${calcIncome('ahmed').toLocaleString()} ج.م
+                </div>
             </div>
 
             <div style="background:var(--bg-card); padding:20px; border-radius:15px; border:1px solid rgba(255,255,255,0.05);">
@@ -734,6 +738,7 @@
             <div class="admin-tile" onclick="toggleAdminDetails('giza')"><i class="fas fa-user-shield fa-2x" style="color:#8b5cf6; margin-bottom:15px;"></i><h3>GIZA</h3><p>لوحة المالك الرئيسية</p></div>
             
             <div class="admin-tile" onclick="toggleAdminDetails('mahmoud')"><i class="fas fa-user-plus fa-2x" style="color:#10b981; margin-bottom:15px;"></i><h3>Mahmoud</h3><p>إدارة أكواد محمود</p></div>
+            <div class="admin-tile" onclick="toggleAdminDetails('ahmed')"><i class="fas fa-user-plus fa-2x" style="color:#f59e0b; margin-bottom:15px;"></i><h3>Ahmed</h3><p>إدارة أكواد أحمد</p></div>
 
             <div class="admin-tile" onclick="toggleBlockedDevicesDetails()"><i class="fas fa-ban fa-2x" style="color:var(--danger); margin-bottom:15px;"></i><h3 style="color:var(--danger)">الحظر</h3><p>إدارة الأجهزة المحظورة</p></div>
             <div class="admin-tile" onclick="toggleCollectionDetails()"><i class="fas fa-chart-line fa-2x" style="color:var(--success); margin-bottom:15px;"></i><h3 style="color:var(--success)">المالية</h3><p>تقرير الأرباح والمصاريف</p></div>
