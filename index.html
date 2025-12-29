@@ -89,7 +89,7 @@
         .search-container input { width: 100%; background: var(--bg-card); border: 2px solid #334155; padding: 12px 20px; border-radius: 50px; color: white; text-align: center; font-size: 1rem; transition: 0.3s; }
         .search-container input:focus { border-color: var(--secondary); box-shadow: 0 0 15px rgba(139, 92, 246, 0.2); }
 
-        /* --- Table --- */
+        /* --- Table & Mobile Responsive --- */
         .table-wrapper { background: var(--bg-card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); overflow-x: auto; border: 1px solid rgba(255,255,255,0.05); }
         table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
         th { color: var(--text-muted); font-size: 0.85rem; padding: 10px; font-weight: 600; text-align: center; }
@@ -149,6 +149,7 @@
 <body>
 
 <script type="module">
+    // 🔥 هنا التعديل المهم: تم إضافة push
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
     import { getDatabase, ref, onValue, update, remove, set, push } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js';
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js'; 
@@ -173,7 +174,7 @@
     
     const codesRef = ref(db, 'approvedStudents');
     const blockedDevicesRef = ref(db, 'blockedDevices');
-    const expensesRef = ref(db, 'expenses'); // مرجع جديد للمصاريف
+    const expensesRef = ref(db, 'expenses'); 
 
     let allCodesData = {};
     let allBlockedDevices = {};
@@ -251,27 +252,18 @@
         return code;
     }
 
-    window.handleAddExpense = (e) => {
-        e.preventDefault(); // دي اللي هتحل المشكلة وتوقف تحديث الصفحة
-        
-        const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
-        const reason = document.getElementById('expenseReason').value;
-
-        if(amount <= 0) return window.showToast("❌ يرجى إدخال مبلغ صحيح", "error");
-        if(!reason) return window.showToast("❌ يرجى كتابة سبب الصرف", "error");
-
-        checkAuthAndProceed(() => {
-            push(expensesRef, {
-                amount: amount,
-                reason: reason,
-                addedBy: CURRENT_ADMIN_ROLE,
-                timestamp: Date.now()
-            }).then(() => {
-                window.showToast("💸 تم تسجيل المصروف", "warn");
-                toggleExpenseForm(false);
-                document.getElementById('expenseForm').reset();
-            });
-        });
+    window.handleSearch = (query) => {
+        currentSearchQuery = query.toLowerCase().trim();
+        if (activeTile && !activeTile.startsWith('BLOCKED') && !activeTile.startsWith('COLLECTION')) {
+            const titleNode = document.querySelector('#codeDetailsContainer h2');
+            if (titleNode) {
+                const title = titleNode.innerText;
+                let categoryKey = 'active';
+                if (title.includes('المُعطلة')) categoryKey = 'manuallyBlocked';
+                if (title.includes('مُنتهية')) categoryKey = 'expired';
+                renderFilteredCodesTable(activeTile, categoryKey, title.split(' لـ ')[0], false);
+            }
+        }
     };
 
     window.toggleBlock = (uid, name, isBlocked) => checkAuthAndProceed(() => {
@@ -352,28 +344,39 @@
         }).then(() => window.showToast("⛔ تم حظر الجهاز بنجاح", "error"));
     });
 
-    // --- منطق المصاريف ---
+    // --- منطق المصاريف المعدل ---
     window.toggleExpenseForm = (show) => {
         document.getElementById('addExpenseOverlay').style.display = show ? 'flex' : 'none';
     };
 
-    window.handleAddExpense = (e) => checkAuthAndProceed(() => {
-        e.preventDefault();
-        const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
-        const reason = document.getElementById('expenseReason').value;
-        if(amount <= 0) return window.showToast("❌ يرجى إدخال مبلغ صحيح", "error");
+    window.handleAddExpense = (e) => {
+        // 🔥 الحل الجذري: منع التحديث فوراً
+        if (e) e.preventDefault();
+        
+        const amountElement = document.getElementById('expenseAmount');
+        const reasonElement = document.getElementById('expenseReason');
+        const amount = parseFloat(amountElement.value) || 0;
+        const reason = reasonElement.value;
 
-        push(expensesRef, {
-            amount: amount,
-            reason: reason,
-            addedBy: CURRENT_ADMIN_ROLE,
-            timestamp: Date.now()
-        }).then(() => {
-            window.showToast("💸 تم تسجيل المصروف", "warn");
-            toggleExpenseForm(false);
-            document.getElementById('expenseForm').reset();
+        if (amount <= 0) return window.showToast("❌ يرجى إدخال مبلغ صحيح", "error");
+        if (!reason) return window.showToast("❌ يرجى كتابة سبب الصرف", "error");
+
+        checkAuthAndProceed(() => {
+            push(expensesRef, {
+                amount: amount,
+                reason: reason,
+                addedBy: CURRENT_ADMIN_ROLE,
+                timestamp: Date.now()
+            }).then(() => {
+                window.showToast("💸 تم تسجيل المصروف", "warn");
+                toggleExpenseForm(false);
+                document.getElementById('expenseForm').reset();
+            }).catch(err => {
+                console.error(err);
+                window.showToast("خطأ في الحفظ", "error");
+            });
         });
-    });
+    };
 
     window.deleteExpense = (id) => checkAuthAndProceed(() => {
         if(!confirm("حذف هذا المصروف نهائياً؟")) return;
@@ -387,7 +390,7 @@
                 if (activeTile === 'BLOCKED_DEVICES') window.toggleBlockedDevicesDetails();
                 else if (!activeTile.startsWith('BLOCKED')) window.toggleAdminDetails(activeTile, true);
             }
-            if (activeTile === 'COLLECTION') window.toggleCollectionDetails(); // Refresh collection if active
+            if (activeTile === 'COLLECTION') window.toggleCollectionDetails(); 
         });
         onValue(blockedDevicesRef, (snap) => {
             allBlockedDevices = snap.val() || {};
@@ -395,7 +398,7 @@
         });
         onValue(expensesRef, (snap) => {
             allExpenses = snap.val() || {};
-            if (activeTile === 'COLLECTION') window.toggleCollectionDetails(); // Refresh calculation
+            if (activeTile === 'COLLECTION') window.toggleCollectionDetails(); 
         });
     }
 
@@ -511,7 +514,6 @@
             </div>`;
     };
 
-    // 🔥 قسم المالية الجديد والمصاريف 🔥
     window.toggleCollectionDetails = () => {
         activeTile = 'COLLECTION';
         const container = document.getElementById('codeDetailsContainer');
